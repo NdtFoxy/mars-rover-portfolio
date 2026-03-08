@@ -20,5 +20,5 @@ async def get_current_state():
 @router.post("/step", response_model=GameState)
 async def make_next_step():
     """Запускает один шаг симуляции (агент двигается) и возвращает новое состояние."""
-    agent.move_randomly(env.width, env.height) # Вызываем метод из заглушки
+    agent.move_randomly(env) # Вызываем метод из заглушки
     return await get_current_state()

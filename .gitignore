@@ -6,11 +6,6 @@ venv/
 env/
 .env
 
-# --- IDEs ---
-.idea/
-.vscode/
-*.swp
-
 # --- Unreal Engine 5 ---
 frontend_ue/Binaries/
 frontend_ue/Build/
@@ -24,3 +19,22 @@ frontend_ue/*.suo
 frontend_ue/*.opensdf
 frontend_ue/*.sdf
 frontend_ue/*.Source.db
+
+# ==================================
+# Node.js / Frontend (Vite + React)
+# ==================================
+node_modules/
+dist/
+.env.local
+.env.*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ==================================
+# IDE / OS specific
+# ==================================
+.idea/
+.vscode/
+*.swp
+.DS_Store

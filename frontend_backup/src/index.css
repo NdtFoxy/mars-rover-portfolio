@@ -1,0 +1,68 @@
+/* src/index.css */
+
+/* 1. Импортируем подходящий футуристичный шрифт */
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap');
+
+/* 2. Определяем нашу новую марсианскую палитру */
+:root {
+  --font-sans: 'Orbitron', system-ui, sans-serif;
+  
+  /* Цвета Марса */
+  --mars-background: #330d00; /* Глубокий темно-красный */
+  --mars-surface: #5a1a01;   /* Поверхность */
+  --mars-crater-dark: #240a00; /* Темная часть кратера */
+  --mars-crater-light: #7b2c0f; /* Светлая часть кратера */
+
+  --accent-primary: #FF4500;  /* Оранжево-красный акцент */
+  --accent-secondary: #FFD700;/* Золотой для иконок */
+  --text-primary: #FFFFFF;    /* Основной текст */
+  --text-secondary: #E0E0E0;  /* Вторичный текст */
+  --border-color: rgba(255, 69, 0, 0.3); /* Цвет рамки */
+  --error-color: #FF6347; /* Цвет для ошибок */
+}
+
+/* 3. Базовый сброс стилей и применение темы */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  color: var(--text-primary);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  /* 
+    Магия создания фона Марса:
+    Мы накладываем несколько слоев радиальных градиентов.
+    Каждый градиент - это один "кратер". Он имеет темный центр, 
+    затем резкий переход к светлому "ободу" кратера, и плавный переход
+    к основному цвету поверхности.
+    Меняя их размеры (`150px 150px`) и положение (`-50px -50px`), 
+    мы создаем случайное поле кратеров.
+  */
+  background-color: var(--mars-surface);
+  background-image:
+    radial-gradient(circle at 10% 20%, var(--mars-crater-light) 1%, var(--mars-crater-dark) 15%, var(--mars-surface) 30%),
+    radial-gradient(circle at 80% 30%, var(--mars-crater-light) 1%, var(--mars-crater-dark) 10%, var(--mars-surface) 25%),
+    radial-gradient(circle at 50% 70%, var(--mars-crater-light) 2%, var(--mars-crater-dark) 20%, var(--mars-surface) 40%),
+    radial-gradient(circle at 90% 85%, var(--mars-crater-light) 0.5%, var(--mars-crater-dark) 8%, var(--mars-surface) 20%);
+}
+
+/* 4. Анимация появления основного контейнера */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
