@@ -1,0 +1,26 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.env
+
+# --- IDEs ---
+.idea/
+.vscode/
+*.swp
+
+# --- Unreal Engine 5 ---
+frontend_ue/Binaries/
+frontend_ue/Build/
+frontend_ue/DerivedDataCache/
+frontend_ue/Intermediate/
+frontend_ue/Saved/
+frontend_ue/.idea/
+frontend_ue/.vscode/
+frontend_ue/*.sln
+frontend_ue/*.suo
+frontend_ue/*.opensdf
+frontend_ue/*.sdf
+frontend_ue/*.Source.db
