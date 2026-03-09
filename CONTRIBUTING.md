@@ -35,6 +35,10 @@
 **Сценарий работы в терминале:**
 
 ```bash
+
+git clone https://git.wmi.amu.edu.pl/s498817/ai-course-project.git
+cd ai-course-project
+
 # 1. Переходим в главную ветку
 git checkout main
 
