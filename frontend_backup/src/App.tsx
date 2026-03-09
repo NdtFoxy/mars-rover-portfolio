@@ -1,117 +1,107 @@
 // src/App.tsx
 import { useEffect, useState } from 'react';
 import { Grid } from './components/Grid';
-import { fetchGameState } from './api/client';
-import type { EnvironmentState } from './types/index';
+// Импортируем наши НОВЫЕ функции для работы с реальным API
+import { fetchInitialState, makeStep } from './api/client';
+// Импортируем наш обновленный тип GameState
+import type { GameState } from './types/index';
 
-// --- Стили для UI элементов ---
+// --- Стили для UI элементов (остаются прежними) ---
 const mainContainerStyle: React.CSSProperties = {
   display: 'flex', flexDirection: 'column', alignItems: 'center',
   gap: '1.5rem', padding: '2rem', animation: 'fadeIn 0.8s ease-out',
-  backgroundColor: 'rgba(11, 11, 30, 0.7)', // Полупрозрачный фон для читаемости
+  backgroundColor: 'rgba(11, 11, 30, 0.7)',
   border: '1px solid var(--border-color)', borderRadius: '16px',
   boxShadow: '0 4px 30px rgba(0, 0, 0, 0.4)', backdropFilter: 'blur(5px)',
 };
 const headerStyle: React.CSSProperties = { textAlign: 'center' };
 const titleStyle: React.CSSProperties = { fontSize: '2rem', textTransform: 'uppercase' };
 const subtitleStyle: React.CSSProperties = { fontSize: '1rem', color: 'var(--text-secondary)', opacity: 0.8 };
-const controlPanelStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%', maxWidth: '350px' };
-const buttonStyle: React.CSSProperties = { backgroundColor: 'var(--accent-primary)', color: '#fff', border: 'none', padding: '12px', borderRadius: '8px', cursor: 'pointer', fontSize: '1rem', fontWeight: 'bold', transition: 'transform 0.2s ease' };
-const inputGroupStyle: React.CSSProperties = { display: 'flex', gap: '0.5rem', alignItems: 'center' };
-const inputStyle: React.CSSProperties = { width: '100%', padding: '10px', backgroundColor: 'var(--mars-background)', border: '1px solid var(--border-color)', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '1rem', textAlign: 'center' };
-const errorStyle: React.CSSProperties = { color: 'var(--error-color)', textAlign: 'center', minHeight: '24px', fontWeight: 'bold' };
+const controlPanelStyle: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%', maxWidth: '350px', minHeight: '60px' };
+const buttonStyle: React.CSSProperties = { backgroundColor: 'var(--accent-primary)', color: '#fff', border: 'none', padding: '12px', borderRadius: '8px', cursor: 'pointer', fontSize: '1rem', fontWeight: 'bold', transition: 'all 0.2s ease' };
 // --- Конец стилей ---
 
 function App() {
   // --- Состояния Компонента (State Hooks) ---
   
-  // Хранит все данные о симуляции (размер поля, позиция агента)
-  const [gameState, setGameState] = useState<EnvironmentState | null>(null);
-  
-  // Хранит текстовое значение из поля ввода для 'X'
-  const [inputX, setInputX] = useState<string>('0');
-  
-  // Хранит текстовое значение из поля ввода для 'Y'
-  const [inputY, setInputY] = useState<string>('0');
-  
-  // Хранит сообщение об ошибке, если ввод некорректен
-  const [error, setError] = useState<string | null>(null);
+  // Хранит все данные о симуляции. Имя типа обновлено на GameState.
+  const [gameState, setGameState] = useState<GameState | null>(null);
+
+  // Состояние для отслеживания загрузки. Пока true, кнопка будет неактивна.
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
   // --- Эффекты (Effects) ---
 
   // Этот хук выполняется один раз при загрузке приложения
   useEffect(() => {
-    // Запрашиваем начальное состояние с "сервера" (нашей заглушки)
-    fetchGameState().then(data => {
-      setGameState(data);
-      // Устанавливаем начальные значения в полях ввода
-      setInputX(String(data.agent_position.x));
-      setInputY(String(data.agent_position.y));
-    });
-  }, []);
+    console.log("Fetching initial state...");
+    fetchInitialState()
+      .then(data => {
+        console.log("Data received:", data); // Проверим, что пришло
+        setGameState(data);
+      })
+      .catch(err => {
+        console.error("CORS or Network Error:", err);
+      });
+  }, []);// Пустой массив означает "выполнить один раз"
 
   // --- Обработчики Событий (Event Handlers) ---
 
-  // Функция для тестового хода по кнопке "NEXT STEP"
-  // const handleStep = () => { /* ... логика хода останется прежней ... */ };
+  // Функция для выполнения шага по кнопке "Make Step"
+  const handleStep = async () => {
+    if (isLoading) return; // Если уже идет загрузка, ничего не делаем
 
-  // Функция для установки новой позиции ровера по координатам из полей ввода
-  const handleSetPosition = () => {
-    if (!gameState) return; // Защита, если состояние игры еще не загружено
-
-    // 1. Преобразуем текст из полей ввода в целые числа
-    const x = parseInt(inputX, 10);
-    const y = parseInt(inputY, 10);
-
-    // 2. Валидация (проверка) введенных данных
-    if (isNaN(x) || isNaN(y)) {
-      setError("Coordinates must be numbers."); // Ошибка, если введено не число
-      return;
+    setIsLoading(true); // Блокируем кнопку
+    
+    try {
+      // Вызываем нашу API-функцию, которая делает POST-запрос на /step
+      const newState = await makeStep();
+      // Обновляем состояние на фронтенде данными, пришедшими с бэкенда
+      setGameState(newState);
+    } catch (error) {
+      console.error("Failed to make a step:", error);
+      // Здесь можно добавить обработку ошибок, если сервер недоступен
+    } finally {
+      setIsLoading(false); // Разблокируем кнопку в любом случае (успех или ошибка)
     }
-    if (x < 0 || x >= gameState.grid_size.width || y < 0 || y >= gameState.grid_size.height) {
-      setError("Coordinates are outside the grid."); // Ошибка, если вышли за пределы поля
-      return;
-    }
-
-    // 3. Если все проверки пройдены
-    setError(null); // Убираем сообщение об ошибке
-    setGameState({ // Обновляем состояние игры
-      ...gameState,
-      agent_position: { x, y },
-    });
   };
 
   // --- Логика Рендера ---
 
-  // Показываем заглушку, пока данные не загрузились
+  // Показываем заглушку, пока данные не загрузились с сервера
   if (!gameState) {
     return <div style={subtitleStyle}>Awaiting Signal from Mars...</div>;
   }
+  
+  // Исправляем названия полей с width/height на x/y в компоненте Grid
+  const gridStateForComponent = {
+    grid_size: {
+        width: gameState.grid_size.x,
+        height: gameState.grid_size.y
+    },
+    agent_position: gameState.agent_position
+  };
+
 
   // Основной рендер компонента
   return (
     <main style={mainContainerStyle}>
       <header style={headerStyle}>
         <h1 style={titleStyle}>Mission Control</h1>
-        <p style={subtitleStyle}>Mars Rover Position</p>
+        <p style={subtitleStyle}>Mars Rover Simulation</p>
       </header>
       
-      <Grid gameState={gameState} />
+      {/* Передаем в Grid данные в ожидаемом им формате */}
+      <Grid gameState={gridStateForComponent} />
       
       <div style={controlPanelStyle}>
-        {/* Сообщение об ошибке (отображается только если есть ошибка) */}
-        <p style={errorStyle}>{error || ' '}</p>
-        
-        <div style={inputGroupStyle}>
-          {/* Поле для ввода X */}
-          <input type="number" value={inputX} style={inputStyle} onChange={(e) => { setInputX(e.target.value); setError(null); }} />
-          {/* Поле для ввода Y */}
-          <input type="number" value={inputY} style={inputStyle} onChange={(e) => { setInputY(e.target.value); setError(null); }} />
-        </div>
-        
-        {/* Кнопка для применения координат */}
-        <button style={buttonStyle} onClick={handleSetPosition}>
-          Set Rover Position
+        {/* Кнопка для выполнения шага */}
+        <button 
+          style={{ ...buttonStyle, opacity: isLoading ? 0.6 : 1 }} // Кнопка становится прозрачной во время загрузки
+          onClick={handleStep}
+          disabled={isLoading} // Кнопка отключается во время загрузки
+        >
+          {isLoading ? 'Executing...' : 'Make Step'}
         </button>
       </div>
     </main>
