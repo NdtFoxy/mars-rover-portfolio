@@ -24,8 +24,16 @@ This document tracks the individual contributions of team members for the "Auton
 *   **Documentation:**
     *   Authored `CONTRIBUTING.md` and `REPORTS.md` to streamline team collaboration.
 
-### 👷 Aleksandra's Contributions
-*(Aleksandra, please add your tasks here)*
+### 👷 Aliaksandra's Contributions
+*   **Domain Entity Modeling:**
+    *   Implemented the `Environment` class to represent the 2D grid world (`width`, `height`).
+    *   Developed boundary validation logic (`is_within_bounds`) to ensure the agent cannot move outside the defined grid.
+*   **Agent Mechanics & Navigation:**
+    *   Created the `Agent` class with position tracking (`x`, `y`).
+    *   Implemented the core `move` method, enforcing step-by-step movement constraints (preventing teleportation) and validating new coordinates against the `Environment` rules.
+    *   Developed the `move_randomly` algorithm for autonomous navigation (choosing Up, Down, Left, Right) while respecting the world's boundaries.
+*   **Documentation:**
+    *   Documented personal technical contributions and domain logic structures in `REPORTS.md`.
 
 ### 🎨 Artem's Contributions
 *(Artem, please add your tasks here)*
