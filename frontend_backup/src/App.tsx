@@ -73,16 +73,6 @@ function App() {
     return <div style={subtitleStyle}>Awaiting Signal from Mars...</div>;
   }
   
-  // Исправляем названия полей с width/height на x/y в компоненте Grid
-  const gridStateForComponent = {
-    grid_size: {
-        width: gameState.grid_size.x,
-        height: gameState.grid_size.y
-    },
-    agent_position: gameState.agent_position
-  };
-
-
   // Основной рендер компонента
   return (
     <main style={mainContainerStyle}>
@@ -92,7 +82,7 @@ function App() {
       </header>
       
       {/* Передаем в Grid данные в ожидаемом им формате */}
-      <Grid gameState={gridStateForComponent} />
+      <Grid gameState={gameState} />
       
       <div style={controlPanelStyle}>
         {/* Кнопка для выполнения шага */}
