@@ -1,10 +1,9 @@
 // src/components/Grid.tsx
-import type { EnvironmentState } from '../types/index';
-import { Bot } from 'lucide-react'; // Иконка нашего ровера
+import type { GameState } from '../types/index';
+import { Bot } from 'lucide-react';
 
-// Типизация пропсов (входных данных) для компонента
 interface GridProps {
-  gameState: EnvironmentState;
+  gameState: GameState;
 }
 
 // Стили, вынесенные в константы для чистоты кода
@@ -31,31 +30,25 @@ const cellStyle: React.CSSProperties = {
 
 // Компонент Grid отвечает за отрисовку поля и положения ровера
 export const Grid = ({ gameState }: GridProps) => {
-  // Извлекаем нужные данные из состояния игры
   const { grid_size, agent_position } = gameState;
-  const totalCells = grid_size.width * grid_size.height;
+  const totalCells = grid_size.x * grid_size.y;
 
   return (
     <div 
       style={{
         ...gridContainerStyle,
-        // Динамически задаем количество колонок и рядов
-        gridTemplateColumns: `repeat(${grid_size.width}, 40px)`,
-        gridTemplateRows: `repeat(${grid_size.height}, 40px)`,
+        gridTemplateColumns: `repeat(${grid_size.x}, 40px)`,
+        gridTemplateRows: `repeat(${grid_size.y}, 40px)`,
       }}
     >
-      {/* Создаем массив нужной длины и рендерим ячейку для каждого элемента */}
       {Array.from({ length: totalCells }).map((_, index) => {
-        // Высчитываем X и Y координаты для каждой ячейки по ее индексу
-        const x = index % grid_size.width;
-        const y = Math.floor(index / grid_size.width);
+        const x = index % grid_size.x;
+        const y = Math.floor(index / grid_size.x);
         
-        // Проверяем, находится ли ровер в текущей ячейке
         const isRoverHere = agent_position.x === x && agent_position.y === y;
 
         return (
           <div key={index} style={cellStyle}>
-            {/* Если ровер здесь - рисуем его иконку */}
             {isRoverHere && <Bot color="var(--accent-secondary)" size={30} />}
           </div>
         );
