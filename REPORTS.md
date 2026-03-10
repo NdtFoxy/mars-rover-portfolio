@@ -36,7 +36,16 @@ This document tracks the individual contributions of team members for the "Auton
     *   Documented personal technical contributions and domain logic structures in `REPORTS.md`.
 
 ### 🎨 Artem's Contributions
-*(Artem, please add your tasks here)*
+* **UE5 Environment Setup:**
+    * Created a 3D Mars-themed environment with a discrete grid visualization (BP_GridManager).
+    * Imported and configured the Rover actor (BP_MarsRover) as a Pawn, ensuring correct camera control (3rd person).
+* **Backend Integration:**
+    * Implemented asynchronous HTTP POST requests using VaRest plugin to fetch agent movement data from the FastAPI server.
+    * Developed JSON parsing logic to extract agent coordinates (`x`, `y`) from the API response.
+* **Visualization Logic:**
+    * Created a coordinate mapping system to translate backend grid indices into UE5 World Space.
+    * Implemented smooth movement transitions (MoveComponentTo) for the rover to ensure professional visual experience.
+    * Configured procedural obstacle spawning with visibility toggling for the grid tiles.
 
 ---
 
