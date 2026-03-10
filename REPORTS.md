@@ -4,7 +4,7 @@ This document tracks the individual contributions of team members for the "Auton
 
 ## 👤 Team Members
 - **Mykyta** (Team Lead, Backend Architecture, API)
-- **Aleksandra** (Backend Logic, Domain Entities)
+- **Aliaksandra** (Backend Logic, Domain Entities)
 - **Artem** (Frontend, Unreal Engine 5 Visualization)
 
 ---
