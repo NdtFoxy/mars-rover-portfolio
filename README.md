@@ -24,43 +24,79 @@ Frontend: Unreal Engine 5 (3D Visualization), React 18 + TypeScript, Lucide Reac
 Communication Protocol: HTTP/REST (JSON).
 Version Control: Git (Gitea).
 
-<h2>🧭 Карта Проекта (Интерактивная)</h2>
+---
+
+<div align="center">
+  <h2>🔴 M.A.R.S. DRONE COMMAND CENTER // TELEMETRY</h2>
+  <p><code>[SYSTEM STATUS: ONLINE]</code> • <code>[LINK: SECURE]</code> • <code>[ORBITAL SYNC: 100%]</code></p>
+</div>
+
+<hr>
 
 <details open>
-  <summary><b>🌍 AI-COURSE-PROJECT</b> <i>(Root)</i></summary>
+  <summary><kbd>🛰️ ROOT</kbd> <b><code>/AI-COURSE-PROJECT</code></b> ── <i>Ares Core Architecture</i></summary>
   
   <blockquote>
-    <details>
-      <summary>📁 <b>backend</b> ── <i>Сердце проекта на Python 🐍</i></summary>
+    <details open>
+      <summary>🟧 <kbd>📁 backend</kbd> ── <i>Autonomous AI Brain & Logic 🧠</i></summary>
       <blockquote>
-        📁 <code>app/</code> - логика и API<br>
-        📁 <code>venv/</code> - окружение<br>
-        📄 <code>requirements.txt</code> - зависимости<br>
-        🚀 <code>run.py</code> - точка входа AI
+        🔸 <code>📁 app/</code> ── Core neural networks & navigation models<br>
+        🔸 <code>📄 requirements.txt</code> ── Main dependency<br>
+        🔥 <b><kbd>🚀 run.py</kbd></b> ── <i>MAIN ENGINE IGNITION (Entry Point)</i>
+      </blockquote>
+    </details>
+    <details open>
+      <summary>🟧 <kbd>📁 frontend_ue</kbd> ── <i>3D Mars Surface Simulation (UE5) 🎮</i></summary>
+      <blockquote>
+        🔸 <code>📁 Config/</code> ── Physics & Environment parameters<br>
+        🔸 <code>📁 Content/</code> ── Drone meshes, textures, blueprints<br>
+        🔸 <code>📁 DerivedDataCache/</code> ── Engine fast-cache<br>
+        🔸 <code>📁 Intermediate/</code> ── Compiled telemetry data<br>
+        🔸 <code>📁 Saved/</code> ── Autosaves & Crash logs<br>
+        🔸 <code>📄 Content.dvc</code> ── Large topology assets version control<br>
+        🔷 <b><kbd>frontend_ue.uproject</kbd></b> ── <i>Unreal Engine Launcher</i>
       </blockquote>
     </details>
     <details>
-      <summary>📁 <b>frontend_ue</b> ── <i>Визуализация на Unreal Engine 🎮</i></summary>
+      <summary>🟨 <kbd>📁 frontend_backup</kbd> ── <i>(Web/Vite) 💻</i></summary>
       <blockquote>
-        📁 <code>Config/</code> - настройки UE<br>
-        📁 <code>Content/</code> - ассеты, блюпринты, модели<br>
-        📁 <code>Saved/</code> & <code>Intermediate/</code> - кэш и логи<br>
-        📄 <code>Content.dvc</code> - трекинг тяжелых файлов<br>
-        🔷 <code>frontend_ue.uproject</code> - файл запуска движка
+        🔸 <code>📁 public/</code> & <code>📁 src/</code> ── Interface source code<br>
+        🔸 <code>📁 node_modules/</code> ── Web dependencies<br>
+        🔸 <code>📄 index.html</code> ── Dashboard entry point<br>
+        🔸 <code>📄 package.json</code> & <code>package-lock.json</code> ── Packages<br>
+        🔸 <code>📄 tsconfig.*.json</code> ── TypeScript strict typing rules<br>
+        🔸 <code>📄 eslint.config.js</code> & <code>vite.config.ts</code> ── Build tools
       </blockquote>
-    </details>
+    </details>ы
     <details>
-      <summary>📁 <b>assets & .dvc</b> ── <i>Данные и ресурсы 📊</i></summary>
+      <summary>🟫 <kbd>📁 assets</kbd> ── <i>Media📸</i></summary>
       <blockquote>
-        📁 <code>assets/</code> - картинки, медиа<br>
-        📁 <code>.dvc/</code> - конфиги версионирования данных
+        🔸 <code>🖼️ banner.png</code> ── Mission patch / Banner<br>
+        🔸 <code>🖼️ banner-2.jpg</code> ── Alternative banner<br>
+        🔸 <code>📄 index.html</code> ── Asset viewer index
       </blockquote>
     </details>
-    📄 <code>CONTRIBUTING.md</code> - гайдлайны для команды<br>
-    📄 <code>REPORTS.md</code> - отчетность и метрики<br>
-    📄 <code>README.md</code> - главная документация
+
+    <!-- ROOT LEVEL DIRECTIVES -->
+    <details open>
+      <summary>📜 <kbd>MISSION DIRECTIVES & LOGS</kbd></summary>
+      <blockquote>
+        📑 <code>CONTRIBUTING.md</code> ── Crew collaboration guidelines<br>
+        📊 <code>REPORTS.md</code> ── Drone test analytics & flight reports<br>
+        🔬 <code>test.ipynb</code> ── Jupyter Notebook for AI experiments<br>
+        📖 <code>README.md</code> ── Main mission documentation <i>(You are here)</i>
+      </blockquote>
+    </details>
+
   </blockquote>
 </details>
+
+<hr>
+<div align="center">
+  <sub><i>Initiated by Mars Rover Dev Team • Built with Python & Unreal Engine 5</i></sub>
+</div>
+
+---
 
 # 🚀 Getting Started: Building and Running
 
