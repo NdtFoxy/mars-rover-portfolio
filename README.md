@@ -159,7 +159,7 @@ We use **DVC (Data Version Control)** to manage heavy 3D assets (textures, model
 > **Cloud Storage Access Required:** The project uses an encrypted Google Drive remote. To access the heavy assets, you need the service account credentials.
 
 ### Accessing Assets:
-1. **Request Credentials:** If you are a team member, email the Lead Developer (Nikita) at **[nikita.kyslytsia@example.com](mailto:mykkys@st.amu.edu.pl)** to request the necessary JSON keys.
+1. **Request Credentials:** If you are a team member, email the Lead Developer (Mykyta) at **[mykkys@st.amu.edu.pl](mailto:mykkys@st.amu.edu.pl)** to request the necessary JSON keys.
 2. **Setup:** Place the key file in the root folder, then configure DVC locally:
    ```sh
    dvc remote modify --local myremote gdrive_client_id <CLIENT_ID>
