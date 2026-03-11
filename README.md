@@ -4,8 +4,10 @@
   </a>
 
 <h3 align="center" style="margin: 0;">Autonomous Mars Rover</h3>
-<h4 align="center" style="margin: 0;">UNREAL ENGINE 5 + PYTHON ML BACKEND + REACT FRONTEND</h4>
-</div>
+  <p>
+    <kbd>UNREAL ENGINE 5</kbd> ✛ <kbd>PYTHON ML BACKEND</kbd> ✛ <kbd>REACT FRONTEND</kbd>
+  </p>
+  </div>
 
 Project Description: An autonomous agent exploring the surface of Mars based on a discrete, two-dimensional representation of the environment. The project combines visualization in Unreal Engine 5 with advanced decision-making logic on a Python server and a web-based control panel built with React.
 
@@ -24,20 +26,9 @@ Frontend: Unreal Engine 5 (3D Visualization), React 18 + TypeScript, Lucide Reac
 Communication Protocol: HTTP/REST (JSON).
 Version Control: Git (Gitea).
 
----
 
 <div align="center">
-  <h1>🔴 M.A.R.S. AUTONOMOUS ROVER // TELEMETRY HUB</h1>
-  
-  <p>
-    <kbd>UNREAL ENGINE 5</kbd> ✛ <kbd>PYTHON ML BACKEND</kbd> ✛ <kbd>REACT FRONTEND</kbd>
-  </p>
-
-  <blockquote>
-    <i><b>Mission Brief:</b> An autonomous agent exploring the surface of Mars based on a discrete, two-dimensional representation of the environment. The project combines visualization in Unreal Engine 5 with advanced decision-making logic on a Python server and a web-based control panel built with React.</i>
-  </blockquote>
-
-  <p><code>[SYSTEM STATUS: ONLINE]</code> • <code>[LINK: SECURE]</code> • <code>[ORBITAL SYNC: 100%]</code></p>
+  <h1>🔴 M.A.R.S. AUTONOMOUS ROVER STRUCTURE</h1>
 </div>
 
 <hr>
@@ -64,7 +55,6 @@ Version Control: Git (Gitea).
             📐 <code>models.py</code> ── Pydantic data schemas (GameState, Position)
           </blockquote>
         </details>
-        🔸 <code>📁 venv/</code> ── Isolated environment <i>(ignored)</i><br>
         🔸 <code>📄 requirements.txt</code> ── Backend dependency matrix<br>
         🔥 <b><kbd>🚀 run.py</kbd></b> ── <i>MAIN SERVER IGNITION (Entry Point)</i>
       </blockquote>
@@ -92,7 +82,7 @@ Version Control: Git (Gitea).
       </blockquote>
     </details>
     <details>
-      <summary>🟫 <kbd>📁 assets</kbd> ── <i>Mission Media 📸</i></summary>
+      <summary>🖼️ <kbd>📁 assets</kbd> ── <i>Media 📸</i></summary>
       <blockquote>
         🔸 <code>🖼️ banner.png</code> ── Mission patch / Banner<br>
         🔸 <code>🖼️ banner-2.jpg</code> ── Alternative banner<br>
@@ -100,12 +90,11 @@ Version Control: Git (Gitea).
       </blockquote>
     </details>
     <details open>
-      <summary>📜 <kbd>MISSION DIRECTIVES & LOGS</kbd></summary>
+      <summary>📜 <kbd>DIRECTIVES</kbd></summary>
       <blockquote>
         📑 <code>CONTRIBUTING.md</code> ── Crew collaboration guidelines<br>
-        📊 <code>REPORTS.md</code> ── Rover test analytics & flight reports<br>
-        🔬 <code>test.ipynb</code> ── Jupyter Notebook for AI experiments<br>
-        📖 <code>README.md</code> ── Main mission documentation <i>(You are here)</i>
+        📊 <code>REPORTS.md</code> ── Tracks team members work<br>
+        📖 <code>README.md</code> ── Main documentation
       </blockquote>
     </details>
   </blockquote>
@@ -115,7 +104,6 @@ Version Control: Git (Gitea).
   <sub><i>Initiated by Mars Rover Dev Team • Built with Python, React & Unreal Engine 5</i></sub>
 </div>
 
----
 
 # 🚀 Getting Started: Building and Running
 
