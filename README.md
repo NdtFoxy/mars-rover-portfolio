@@ -27,7 +27,16 @@ Version Control: Git (Gitea).
 ---
 
 <div align="center">
-  <h2>🔴 M.A.R.S. DRONE COMMAND CENTER // TELEMETRY</h2>
+  <h1>🔴 M.A.R.S. AUTONOMOUS ROVER // TELEMETRY HUB</h1>
+  
+  <p>
+    <kbd>UNREAL ENGINE 5</kbd> ✛ <kbd>PYTHON ML BACKEND</kbd> ✛ <kbd>REACT FRONTEND</kbd>
+  </p>
+
+  <blockquote>
+    <i><b>Mission Brief:</b> An autonomous agent exploring the surface of Mars based on a discrete, two-dimensional representation of the environment. The project combines visualization in Unreal Engine 5 with advanced decision-making logic on a Python server and a web-based control panel built with React.</i>
+  </blockquote>
+
   <p><code>[SYSTEM STATUS: ONLINE]</code> • <code>[LINK: SECURE]</code> • <code>[ORBITAL SYNC: 100%]</code></p>
 </div>
 
@@ -38,62 +47,72 @@ Version Control: Git (Gitea).
   
   <blockquote>
     <details open>
-      <summary>🟧 <kbd>📁 backend</kbd> ── <i>Autonomous AI Brain & Logic 🧠</i></summary>
+      <summary>🟧 <kbd>📁 backend</kbd> ── <i>Python API & AI Brain 🧠</i></summary>
       <blockquote>
-        🔸 <code>📁 app/</code> ── Core neural networks & navigation models<br>
-        🔸 <code>📄 requirements.txt</code> ── Main dependency<br>
-        🔥 <b><kbd>🚀 run.py</kbd></b> ── <i>MAIN ENGINE IGNITION (Entry Point)</i>
+        <details open>
+          <summary>🔸 <kbd>📁 app</kbd> ── <i>FastAPI Server Application</i></summary>
+          <blockquote>
+            <details open>
+              <summary>⚙️ <kbd>📁 core</kbd> ── <i>Simulation Engine</i></summary>
+              <blockquote>
+                🤖 <code>agent.py</code> ── Rover decision-making & movement logic<br>
+                🗺️ <code>environment.py</code> ── 2D discrete grid world boundaries
+              </blockquote>
+            </details>
+            🌐 <code>main.py</code> ── Server setup & React CORS configuration<br>
+            📡 <code>api.py</code> ── REST endpoints (<code>/state</code>, <code>/step</code>)<br>
+            📐 <code>models.py</code> ── Pydantic data schemas (GameState, Position)
+          </blockquote>
+        </details>
+        🔸 <code>📁 venv/</code> ── Isolated environment <i>(ignored)</i><br>
+        🔸 <code>📄 requirements.txt</code> ── Backend dependency matrix<br>
+        🔥 <b><kbd>🚀 run.py</kbd></b> ── <i>MAIN SERVER IGNITION (Entry Point)</i>
       </blockquote>
     </details>
     <details open>
       <summary>🟧 <kbd>📁 frontend_ue</kbd> ── <i>3D Mars Surface Simulation (UE5) 🎮</i></summary>
       <blockquote>
         🔸 <code>📁 Config/</code> ── Physics & Environment parameters<br>
-        🔸 <code>📁 Content/</code> ── Drone meshes, textures, blueprints<br>
-        🔸 <code>📁 DerivedDataCache/</code> ── Engine fast-cache<br>
-        🔸 <code>📁 Intermediate/</code> ── Compiled telemetry data<br>
+        🔸 <code>📁 Content/</code> ── Rover meshes, textures, blueprints<br>
+        🔸 <code>📁 DerivedDataCache/</code> & <code>Intermediate/</code> ── Engine cache & compiled data<br>
         🔸 <code>📁 Saved/</code> ── Autosaves & Crash logs<br>
         🔸 <code>📄 Content.dvc</code> ── Large topology assets version control<br>
         🔷 <b><kbd>frontend_ue.uproject</kbd></b> ── <i>Unreal Engine Launcher</i>
       </blockquote>
     </details>
     <details>
-      <summary>🟨 <kbd>📁 frontend_backup</kbd> ── <i>(Web/Vite) 💻</i></summary>
+      <summary>🟨 <kbd>📁 frontend_backup</kbd> ── <i>React Web Control Panel 💻</i></summary>
       <blockquote>
-        🔸 <code>📁 public/</code> & <code>📁 src/</code> ── Interface source code<br>
+        🔸 <code>📁 public/</code> & <code>📁 src/</code> ── UI source code & React components<br>
         🔸 <code>📁 node_modules/</code> ── Web dependencies<br>
         🔸 <code>📄 index.html</code> ── Dashboard entry point<br>
-        🔸 <code>📄 package.json</code> & <code>package-lock.json</code> ── Packages<br>
+        🔸 <code>📄 package.json</code> ── Node packages<br>
         🔸 <code>📄 tsconfig.*.json</code> ── TypeScript strict typing rules<br>
-        🔸 <code>📄 eslint.config.js</code> & <code>vite.config.ts</code> ── Build tools
+        🔸 <code>📄 vite.config.ts</code> ── Web bundler config (Runs on port 5173)
       </blockquote>
-    </details>ы
+    </details>
     <details>
-      <summary>🟫 <kbd>📁 assets</kbd> ── <i>Media📸</i></summary>
+      <summary>🟫 <kbd>📁 assets</kbd> ── <i>Mission Media 📸</i></summary>
       <blockquote>
         🔸 <code>🖼️ banner.png</code> ── Mission patch / Banner<br>
         🔸 <code>🖼️ banner-2.jpg</code> ── Alternative banner<br>
         🔸 <code>📄 index.html</code> ── Asset viewer index
       </blockquote>
     </details>
-
-    <!-- ROOT LEVEL DIRECTIVES -->
     <details open>
       <summary>📜 <kbd>MISSION DIRECTIVES & LOGS</kbd></summary>
       <blockquote>
         📑 <code>CONTRIBUTING.md</code> ── Crew collaboration guidelines<br>
-        📊 <code>REPORTS.md</code> ── Drone test analytics & flight reports<br>
+        📊 <code>REPORTS.md</code> ── Rover test analytics & flight reports<br>
         🔬 <code>test.ipynb</code> ── Jupyter Notebook for AI experiments<br>
         📖 <code>README.md</code> ── Main mission documentation <i>(You are here)</i>
       </blockquote>
     </details>
-
   </blockquote>
 </details>
-
 <hr>
 <div align="center">
-  <sub><i>Initiated by Mars Rover Dev Team • Built with Python & Unreal Engine 5</i></sub>
+  <sub><i>Initiated by Mars Rover Dev Team • Built with Python, React & Unreal Engine 5</i></sub>
 </div>
 
 ---
