@@ -13,16 +13,23 @@ This document tracks the individual contributions of team members for the "Auton
 **Status:** Completed ✅
 
 ### 🛠 Mykyta's Contributions
-*   **Project Infrastructure:**
-    *   Set up the Git repository, configured `.gitignore` to exclude OS/IDE/Unreal Engine temporary files.
-    *   Established a professional **Git Flow** workflow (branching strategy, conventional commits).
+
+*   **Project Infrastructure & DevOps:**
+    *   Set up the Git repository with a robust `.gitignore` to prevent repository bloat.
+    *   Established a professional **Git Flow** workflow (branching strategy, conventional commits, Pull Request reviews).
+    *   **Cloud Asset Pipeline (DVC):** Integrated **DVC (Data Version Control)** linked to Google Drive to manage large Unreal Engine assets, ensuring the Git repository stays lightweight and performant.
+    *   **Security & Auth:** Configured secure **Google OAuth 2.0 / Service Account** authentication for DVC, ensuring team access while strictly protecting secrets from being exposed in version control.
+
 *   **Backend Architecture (FastAPI):**
-    *   Designed the project folder structure following clean architecture principles.
-    *   Implemented the **FastAPI server** with API endpoints (`/state`, `/step`) to bridge backend logic and frontend visualization.
-    *   Created **Pydantic models** (`GameState`, `Position`) to standardize data exchange between services.
-    *   **Stubs & Mocking:** Implemented temporary stubs for `Agent` and `Environment` classes to ensure early API testing and integration readiness for frontend development.
-*   **Documentation:**
-    *   Authored `CONTRIBUTING.md` and `REPORTS.md` to streamline team collaboration.
+    *   Designed a scalable folder structure following clean architecture principles.
+    *   Implemented the **FastAPI server** with RESTful endpoints (`/state`, `/step`) to bridge backend logic and frontend visualization.
+    *   Created **Pydantic models** (`GameState`, `Position`) to standardize and validate data exchange between Python and Unreal Engine.
+    *   **Stubs & Mocking:** Developed an initial backend skeleton, allowing the frontend team to start integration before the final domain logic was implemented.
+
+*   **Project Management & Documentation:**
+    *   Authored comprehensive developer guidelines (`CONTRIBUTING.md`) and project technical documentation.
+    *   Maintained project status reports (`REPORTS.md`), ensuring full transparency of team progress for the academic audit.
+
 
 ### 👷 Aliaksandra's Contributions
 *   **Domain Entity Modeling:**
@@ -36,14 +43,15 @@ This document tracks the individual contributions of team members for the "Auton
     *   Documented personal technical contributions and domain logic structures in `REPORTS.md`.
 
 ### 🎨 Artem's Contributions
-*(Artem, please add your tasks here)*
+* **UE5 Environment Setup:**
+    * Created a 3D Mars-themed environment with a discrete grid visualization (BP_GridManager).
+    * Imported and configured the Rover actor (BP_MarsRover) as a Pawn, ensuring correct camera control (3rd person).
+* **Backend Integration:**
+    * Implemented asynchronous HTTP POST requests using VaRest plugin to fetch agent movement data from the FastAPI server.
+    * Developed JSON parsing logic to extract agent coordinates (`x`, `y`) from the API response.
+* **Visualization Logic:**
+    * Created a coordinate mapping system to translate backend grid indices into UE5 World Space.
+    * Implemented smooth movement transitions (MoveComponentTo) for the rover to ensure professional visual experience.
+    * Configured procedural obstacle spawning with visibility toggling for the grid tiles.
 
 ---
-
-## 🚀 How to contribute (Team Workflow)
-To maintain code quality, we follow these rules:
-1. **Never push to `main` directly.**
-2. **Create a feature branch:** `git checkout -b feat/your-feature-name`
-3. **Commit your changes:** `git commit -m "feat: description of your change"`
-4. **Push to Gitea:** `git push origin feat/your-feature-name`
-5. **Open a Pull Request (PR)** in the Gitea interface and request a review.
