@@ -28,7 +28,7 @@ Version Control: Git (Gitea).
 
 
 <div align="center">
-  <h1>🔴 M.A.R.S. AUTONOMOUS ROVER STRUCTURE</h1>
+  <h1>AUTONOMOUS ROVER STRUCTURE</h1>
 </div>
 
 <hr>
@@ -71,7 +71,7 @@ Version Control: Git (Gitea).
       </blockquote>
     </details>
     <details>
-      <summary>🟨 <kbd>📁 frontend_backup</kbd> ── <i>React Web Control Panel 💻</i></summary>
+      <summary>🟨 <kbd>📁 frontend_backup</kbd> ── <i>React Web Grid 💻</i></summary>
       <blockquote>
         🔸 <code>📁 public/</code> & <code>📁 src/</code> ── UI source code & React components<br>
         🔸 <code>📁 node_modules/</code> ── Web dependencies<br>
@@ -100,9 +100,7 @@ Version Control: Git (Gitea).
   </blockquote>
 </details>
 <hr>
-<div align="center">
-  <sub><i>Initiated by Mars Rover Dev Team • Built with Python, React & Unreal Engine 5</i></sub>
-</div>
+
 
 
 # 🚀 Getting Started: Building and Running
@@ -161,7 +159,7 @@ We use **DVC (Data Version Control)** to manage heavy 3D assets (textures, model
 > **Cloud Storage Access Required:** The project uses an encrypted Google Drive remote. To access the heavy assets, you need the service account credentials.
 
 ### Accessing Assets:
-1. **Request Credentials:** If you are a team member, email the Lead Developer (Nikita) at **[nikita.kyslytsia@example.com](mailto:nikita.kyslytsia@example.com)** to request the necessary JSON keys.
+1. **Request Credentials:** If you are a team member, email the Lead Developer (Nikita) at **[nikita.kyslytsia@example.com](mailto:mykkys@st.amu.edu.pl)** to request the necessary JSON keys.
 2. **Setup:** Place the key file in the root folder, then configure DVC locally:
    ```sh
    dvc remote modify --local myremote gdrive_client_id <CLIENT_ID>
