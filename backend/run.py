@@ -1,4 +1,4 @@
-import uvicorn
+python import uvicorn
 
 if __name__ == "__main__":
     # Эта команда говорит: "Запусти веб-сервер uvicorn"
