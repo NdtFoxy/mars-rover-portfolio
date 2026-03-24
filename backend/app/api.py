@@ -1,50 +1,59 @@
 from fastapi import APIRouter
-from typing import List
-from .models import GameState, AgentState, EnvironmentState, GameObjectState
+from .models import GameState
 from .core.environment import Environment
 from .core.agent import Agent
 
 router = APIRouter()
 
-# Создаем ОДИН раз объекты нашей симуляции (Размер карты 20х15)
+# 1. Инициализируем среду и получаем безопасные координаты для агента
 env = Environment(width=20, height=15)
-agent = Agent(x=10, y=7)
+start_x, start_y = env.reset()
+
+# 2. Спавним агента на Песке
+agent = Agent(x=start_x, y=start_y)
 
 @router.get("/state", response_model=GameState)
 async def get_current_state():
-    """Возвращает текущее состояние мира (Семантическую сеть): агента, погоду и объекты."""
+    """Возвращает полную Семантическую Сеть: агента, среду, карту и объекты."""
     
-    # 1. Собираем все объекты (минералы и базы) с карты в список для JSON
-    objects_list = []
-    for obj in env.objects:
-        objects_list.append(GameObjectState(type=obj.type, x=obj.x, y=obj.y))
-
-    # 2. Формируем итоговый JSON (GameState)
+    # Берем готовые словари прямо из классов Саши
+    env_dict = env.to_dict()
+    
     return GameState(
-        agent=AgentState(
-            x=agent.x, 
-            y=agent.y, 
-            battery=agent.battery, 
-            inventory=agent.inventory
-        ),
-        environment=EnvironmentState(
-            is_night=env.is_night, 
-            weather=env.weather
-        ),
-        objects=objects_list
+        agent=agent.to_dict(),
+        environment={
+            "step_counter": env_dict["step_counter"],
+            "time_of_day": env_dict["time_of_day"],
+            "weather": env_dict["weather"]
+        },
+        grid=env_dict["grid"],
+        objects=env_dict["objects"]
     )
 
 @router.post("/step", response_model=GameState)
 async def make_next_step():
-    """Выполняет один шаг симуляции и возвращает новый статус."""
+    """Выполняет один логический шаг (1 час) и возвращает новый статус."""
     
-    # 1. Агент делает шаг (и тратит батарею)
+    # 1. Агент пытается сделать шаг
     agent.move_randomly(env)
     
-    # 2. Агент взаимодействует со средой (собирает минералы, заряжается)
+    # 2. Агент взаимодействует с минералами/станциями и солнцем
     agent.interact_and_recharge(env)
     
-    # 3. Мир обновляет время суток и погоду
+    # 3. Мир обновляет время (1 час) и погоду
     env.update_time_and_weather()
+    
+    return await get_current_state()
+
+@router.post("/restart", response_model=GameState)
+async def restart_simulation():
+    """Сбрасывает всю симуляцию (Генерирует новую карту и ресурсы)"""
+    global env, agent
+    
+    # Пересоздаем карту и получаем новые координаты
+    start_x, start_y = env.reset()
+    
+    # Возрождаем агента
+    agent = Agent(x=start_x, y=start_y)
     
     return await get_current_state()

@@ -1,6 +1,9 @@
+import random
 import math
 from typing import List, Dict, Any
-from environment import Environment, ChargingStation, Mineral
+
+# Магическая ТОЧКА перед environment решает всё:
+from .environment import Environment, ChargingStation, Mineral
 
 class Agent:
     """Автономный агент (Марсоход) с физикой батареи и State Machine."""
@@ -21,6 +24,35 @@ class Agent:
         self.inventory: List[str] =[]
         self.status: str = "IDLE"  # Возможные: IDLE, MOVING, HEAVY_DRAIN, CHARGING, DEAD
 
+    def move_randomly(self, env: Environment) -> None:
+        """Попытка перемещения агента с учетом стоимости рельефа."""
+        if self.status == "DEAD":
+            return
+            
+        # Возможные шаги: вверх, вниз, вправо, влево
+        possible_steps = [(0, 1), (0, -1), (1, 0), (-1, 0)]
+        dx, dy = random.choice(possible_steps)
+        
+        nx, ny = self.x + dx, self.y + dy
+
+        # Проверяем границы карты
+        if not env.is_within_bounds(nx, ny):
+            return  # Уперся в край карты, остается на месте
+
+        # Получаем тип рельефа и двигаемся
+        terrain_type = env.get_terrain_type(nx, ny)
+        self.x, self.y = nx, ny
+
+        # Штрафы рельефа
+        if terrain_type == 0:  # Песок
+            self.battery -= 2.0
+            self.status = "MOVING"
+        elif terrain_type == 1:  # Гора
+            self.battery -= 6.0
+            self.status = "HEAVY_DRAIN"
+
+        self._check_death()
+        
     def move(self, dx: int, dy: int, env: Environment) -> None:
         """Попытка перемещения агента с учетом стоимости рельефа."""
         if self.status == "DEAD":
