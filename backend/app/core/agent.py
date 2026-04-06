@@ -1,7 +1,9 @@
+import random
 import math
 from typing import List, Dict, Any
 from .environment import Environment, ChargingStation, Mineral
 from .search import bfs_find_path
+
 
 class Agent:
     """Автономный агент (Марсоход) с физикой батареи и State Machine."""
