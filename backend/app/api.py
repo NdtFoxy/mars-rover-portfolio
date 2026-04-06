@@ -34,8 +34,8 @@ async def get_current_state():
 async def make_next_step():
     """Выполняет один логический шаг (1 час) и возвращает новый статус."""
     
-    # 1. Агент пытается сделать шаг
-    agent.move_randomly(env)
+    # 1. Агент выполняет план (BFS) или ищет новый минерал
+    agent.follow_plan_or_search(env)
     
     # 2. Агент взаимодействует с минералами/станциями и солнцем
     agent.interact_and_recharge(env)
