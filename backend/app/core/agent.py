@@ -1,6 +1,7 @@
 import math
 from typing import List, Dict, Any
-from environment import Environment, ChargingStation, Mineral
+from .environment import Environment, ChargingStation, Mineral
+from .search import bfs_find_path
 
 class Agent:
     """Автономный агент (Марсоход) с физикой батареи и State Machine."""
@@ -17,32 +18,66 @@ class Agent:
     def __init__(self, x: int, y: int):
         self.x = x
         self.y = y
+        self.direction = "N"
         self.battery: float = 100.0
         self.inventory: List[str] =[]
         self.status: str = "IDLE"  # Возможные: IDLE, MOVING, HEAVY_DRAIN, CHARGING, DEAD
+        self.current_plan: List[str] =[]
 
-    def move(self, dx: int, dy: int, env: Environment) -> None:
-        """Попытка перемещения агента с учетом стоимости рельефа."""
-        if self.status == "DEAD":
-            return
+    def turn_left(self):
+        dirs = ['N', 'E', 'S', 'W']
+        self.direction = dirs[(dirs.index(self.direction) - 1) % 4]
+        self.battery -= 0.5  # Obrót kosztuje odrobinę energii
+        self.status = "TURNING"
 
+    def turn_right(self):
+        dirs = ['N', 'E', 'S', 'W']
+        self.direction = dirs[(dirs.index(self.direction) + 1) % 4]
+        self.battery -= 0.5
+        self.status = "TURNING"
+
+    def move_forward(self, env: Environment):
+        offsets = {'N': (0, -1), 'E': (1, 0), 'S': (0, 1), 'W': (-1, 0)}
+        dx, dy = offsets[self.direction]
         nx, ny = self.x + dx, self.y + dy
 
-        if not env.is_within_bounds(nx, ny):
-            return  # Уперся в границу карты, остался на месте (можно добавить статус BLOCKED)
-
-        terrain_type = env.get_terrain_type(nx, ny)
-        self.x, self.y = nx, ny
-
-        # Штрафы рельефа
-        if terrain_type == 0:  # Sand
+        if env.is_within_bounds(nx, ny) and env.get_terrain_type(nx, ny) == 0:
+            self.x, self.y = nx, ny
             self.battery -= 2.0
             self.status = "MOVING"
-        elif terrain_type == 1:  # Mountain
-            self.battery -= 6.0
-            self.status = "HEAVY_DRAIN"
 
         self._check_death()
+
+    def follow_plan_or_search(self, env: Environment) -> None:
+        """Główny mózg agenta: Wykonuje plan krok po kroku lub szuka nowego celu przy użyciu BFS."""
+        if self.status == "DEAD":
+            return
+            
+        # Jeśli nie mamy planu, szukamy celu i uruchamiamy BFS
+        if not self.current_plan:
+            active_minerals =[obj for obj in env.objects if obj.is_active and isinstance(obj, Mineral)]
+            if active_minerals:
+                target = active_minerals[0] # Wybieramy pierwszy cel z listy
+                plan = bfs_find_path(self.x, self.y, self.direction, target.x, target.y, env)
+                
+                if plan:
+                    self.current_plan = plan
+                else:
+                    self.status = "IDLE" # Cel odcięty górami
+                    return
+            else:
+                self.status = "IDLE" # Zebrano wszystko na mapie
+                return
+                
+        # Wykonywanie pojedynczego kroku z planu
+        if self.current_plan:
+            action = self.current_plan.pop(0) # Pobierz pierwszą akcję
+            if action == "TURN_LEFT":
+                self.turn_left()
+            elif action == "TURN_RIGHT":
+                self.turn_right()
+            elif action == "MOVE_FORWARD":
+                self.move_forward(env)
 
     def interact_and_recharge(self, env: Environment) -> None:
         """Взаимодействие с объектами на текущей клетке и расчет солнечной зарядки."""
@@ -84,7 +119,7 @@ class Agent:
         self.battery = min(100.0, self.battery + solar_charge)
 
         # Если не двигался в этот ход и не заряжался на станции - меняем статус на IDLE
-        if not is_charging_at_station and self.status not in ["MOVING", "HEAVY_DRAIN"]:
+        if not is_charging_at_station and self.status not in ["MOVING", "HEAVY_DRAIN", "TURNING"]:
             self.status = "IDLE"
 
     def _calculate_solar_efficiency(self, time_of_day: int) -> float:
@@ -110,7 +145,9 @@ class Agent:
         return {
             "x": self.x,
             "y": self.y,
+            "direction": self.direction,
             "battery": round(self.battery, 2),
             "inventory": self.inventory,
-            "status": self.status
+            "status": self.status,
+            "current_plan": self.current_plan
         }
