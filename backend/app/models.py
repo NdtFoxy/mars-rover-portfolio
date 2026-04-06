@@ -4,9 +4,11 @@ from typing import List, Any, Dict, Optional
 class AgentState(BaseModel):
     x: int
     y: int
+    direction: str
     battery: float
     inventory: List[str]
     status: str
+    current_plan: List[str]
 
 class EnvironmentState(BaseModel):
     step_counter: int
