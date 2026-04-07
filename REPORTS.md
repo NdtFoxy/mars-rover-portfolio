@@ -101,6 +101,14 @@ This document tracks the individual contributions of team members for the "Auton
     *   Expanded the FastAPI `Pydantic` models (`AgentState` in `models.py`) to support the new agent state, including directional orientation (`N`, `E`, `S`, `W`) and action queues (`current_plan`).
     *   Refactored the `/step` endpoint in `api.py` to trigger the agent's new cognitive function (`follow_plan_or_search`) instead of random movement, bridging the BFS backend logic with the frontend.
     *   Maintained robust JSON serialization, ensuring the UE5 client receives the calculated path step-by-step.
+    * **DVC Storage Migration (Google Drive to S3):** 
+  Orchestrated a complete migration of the project's heavy data storage from Google Drive to **Backblaze B2 (S3-compatible storage)**. This resolved critical team workflow bottlenecks, including Google Drive's `invalid_grant` OAuth errors and strict personal storage quota limitations.
+    * **Git & DVC Tracking Conflict Resolution:** 
+    Successfully resolved overlapping tracking issues between Git and DVC for the Unreal Engine assets (`frontend_ue`). Untracked heavy directories from Git cache (`git rm -r --cached`) and completely delegated their version control to DVC, ensuring a clean and lightweight GitHub repository.
+    * **Secure S3 Integration:** 
+    Configured DVC to work securely via the `dvc-s3` plugin. Implemented proper security practices by storing AWS S3 application keys locally (`--local` flag) to prevent credential leaks into the public Git repository.
+    * **Onboarding Automation Script:** 
+    Developed a Python utility script (`setup_s3.py`) to automate the DVC setup process for other team members. The script automatically verifies/installs required dependencies (`dvc[s3]`) and injects credentials, allowing teammates to pull gigabytes of data with a single command without manual configuration.
 
 ### 👷 Aliaksandra's Contributions
 *   **State-Space Search Implementation (BFS):**

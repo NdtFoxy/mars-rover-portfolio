@@ -38,3 +38,4 @@ yarn-error.log*
 .vscode/
 *.swp
 .DS_Store
+/frontend_ue
