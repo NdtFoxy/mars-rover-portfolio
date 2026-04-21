@@ -1,58 +1,72 @@
-from collections import deque
-from typing import List, Tuple, Optional, Set
+import heapq
+from typing import List, Tuple, Optional, Dict
 from .environment import Environment
 
-def bfs_find_path(start_x: int, start_y: int, start_dir: str, goal_x: int, goal_y: int, env: Environment) -> Optional[List[str]]:
+TERRAIN_COSTS = {
+    0: 2.0,  # 0 - Piasek (Sand)
+    1: 6.0   # 1 - Skały (Rock)
+    # 2 - Krater (jako ściana)
+}
+TURN_COST = 0.5 
+
+def heuristic(x: int, y: int, goal_x: int, goal_y: int) -> float:
+    """Odległość Manhattan"""
+    return abs(x - goal_x) + abs(y - goal_y)
+
+def reconstruct_path(came_from: Dict, current_state: Tuple) -> List[str]:
+    path =[]
+    while current_state in came_from:
+        current_state, action = came_from[current_state]
+        path.append(action)
+    path.reverse()
+    return path
+
+def astar_find_path(start_x: int, start_y: int, start_dir: str, goal_x: int, goal_y: int, env: Environment) -> Optional[List[str]]:
+    """Algorytm A* z funkcją priorytetu f(n) = g(n) + h(n)"""
     start_state = (start_x, start_y, start_dir)
-    
-    # 1. Struktura OPEN: Kolejka węzłów do rozwinięcia (FIFO - zasada działania BFS)
-    # Przechowujemy: (obecny_stan, ścieżka_akcji_jak_tu_dotrzeć)
-    open_list = deque()
-    open_list.append((start_state,[]))
-    
-    # 2. Struktura CLOSED: Zbiór węzłów już odwiedzonych (zapobiega zapętleniu)
-    closed_set: Set[Tuple[int, int, str]] = set()
-    closed_set.add(start_state)
-    
-    dirs = ['N', 'E', 'S', 'W']
+
+    open_heap =[]
+    heapq.heappush(open_heap, (0, 0, start_state))
+
+    g_score = {start_state: 0.0}
+    came_from = {}
+
+    dirs =['N', 'E', 'S', 'W']
     offsets = {'N': (0, -1), 'E': (1, 0), 'S': (0, 1), 'W': (-1, 0)}
-    
-    # 3. Pętla główna: dopóki lista OPEN nie jest pusta
-    while open_list:
-        (cx, cy, cdir), path = open_list.popleft()
-        
-        # 4. czy agent stoi na polu z celem?
+
+    while open_heap:
+        current_f, current_g, current_state = heapq.heappop(open_heap)
+        cx, cy, cdir = current_state
+
         if cx == goal_x and cy == goal_y:
-            return path
-            
-        # 5. Rozwijanie węzła o 3 możliwe akcje
+            return reconstruct_path(came_from, current_state)
+
+        if current_g > g_score.get(current_state, float('inf')):
+            continue
+
         idx = dirs.index(cdir)
-        
-        # Akcja A: Obrót w lewo (pozycja się nie zmienia, zmienia się kierunek)
-        left_dir = dirs[(idx - 1) % 4]
-        state_l = (cx, cy, left_dir)
-        if state_l not in closed_set:
-            closed_set.add(state_l)
-            open_list.append((state_l, path + ["TURN_LEFT"]))
-            
-        # Akcja B: Obrót w prawo
-        right_dir = dirs[(idx + 1) % 4]
-        state_r = (cx, cy, right_dir)
-        if state_r not in closed_set:
-            closed_set.add(state_r)
-            open_list.append((state_r, path + ["TURN_RIGHT"]))
-            
-        # Akcja C: Ruch do przodu
+        successors = []
+
+        successors.append(((cx, cy, dirs[(idx - 1) % 4]), "TURN_LEFT", TURN_COST))
+        successors.append(((cx, cy, dirs[(idx + 1) % 4]), "TURN_RIGHT", TURN_COST))
+
         dx, dy = offsets[cdir]
         nx, ny = cx + dx, cy + dy
-        
-        # Ruch jest możliwy tylko jeśli jesteśmy w granicach i wchodzimy na Piasek (0)
-        # Góry (1) traktujemy jako przeszkody (ściany), ponieważ BFS zakłada równy koszt przejścia.
-        if env.is_within_bounds(nx, ny) and env.get_terrain_type(nx, ny) == 0:
-            state_f = (nx, ny, cdir)
-            if state_f not in closed_set:
-                closed_set.add(state_f)
-                open_list.append((state_f, path + ["MOVE_FORWARD"]))
-                
-    # Zwraca None, jeśli cel jest całkowicie otoczony górami i niedostępny
+        if env.is_within_bounds(nx, ny):
+            terrain_type = env.get_terrain_type(nx, ny)
+            
+            # Kratery 2
+            if terrain_type != 2:
+                forward_cost = TERRAIN_COSTS.get(terrain_type, 100.0)
+                successors.append(((nx, ny, cdir), "MOVE_FORWARD", forward_cost))
+
+        for next_state, action, action_cost in successors:
+            tentative_g = current_g + action_cost
+
+            if tentative_g < g_score.get(next_state, float('inf')):
+                came_from[next_state] = (current_state, action)
+                g_score[next_state] = tentative_g
+                f = tentative_g + heuristic(next_state[0], next_state[1], goal_x, goal_y)
+                heapq.heappush(open_heap, (f, tentative_g, next_state))
+
     return None
