@@ -42,7 +42,7 @@ class Environment:
         self.time_of_day: int = 0
         self.weather: str = "Clear_Skies"
         
-        self.grid: List[List[int]] = []
+        self.grid: List[List[int]] =[]
         self.objects: List[GameObject] =[]
         
         self.reset()
@@ -76,7 +76,7 @@ class Environment:
         return self.grid[y][x]
 
     def _generate_terrain(self) -> None:
-        """Generuje siatkę: 0 - Piasek ~70%, 1 - Skały ~20%, 2 - Kratery ~10%"""
+        """Generuje siatkę: 0 (Piasek ~70%), 1 (Skały ~20%), 2 (Kratery ~10%)"""
         self.grid =[]
         for _ in range(self.height):
             row = [random.choices([0, 1, 2], weights=[70, 20, 10], k=1)[0] for _ in range(self.width)]

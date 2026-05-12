@@ -3,6 +3,7 @@ import math
 from typing import List, Dict, Any
 from .environment import Environment, ChargingStation, Mineral
 from .search import astar_find_path, TERRAIN_COSTS, TURN_COST
+import pandas as pd
 
 class Agent:
     
@@ -50,16 +51,35 @@ class Agent:
 
         self._check_death()
 
-    def follow_plan_or_search(self, env: Environment) -> None:
+    def follow_plan_or_search(self, env: Environment, trained_tree=None) -> None:
         if self.status == "DEAD":
             return
             
         if not self.current_plan:
-            active_minerals =[obj for obj in env.objects if obj.is_active and isinstance(obj, Mineral)]
-            if active_minerals:
-                target = active_minerals[0]
-                plan = astar_find_path(self.x, self.y, self.direction, target.x, target.y, env)
+            target_obj = None
+            
+            # Pytamy wyuczone drzewo o decyzję
+            if trained_tree is not None:
+                decision = self.decide_next_macro_action(env, trained_tree)
+            else:
+                decision = "CONTINUE_MINING" # Domyślna akcja
                 
+            # Szukamy odpowiedniego celu na mapie w zależności od werdyktu drzewa
+            if decision == "GO_TO_CHARGE":
+                active_stations = [s for s in env.objects if s.is_active and s.type == "ChargingStation"]
+                if active_stations:
+                    # Wybieramy NAJBLIŻSZĄ stację
+                    target_obj = min(active_stations, key=lambda s: abs(self.x - s.x) + abs(self.y - s.y))
+                    
+            elif decision == "CONTINUE_MINING":
+                active_minerals = [m for m in env.objects if m.is_active and m.type in ["Titanium", "Water Ice", "Hematite"]]
+                if active_minerals:
+                    # Wybieramy NAJBLIŻSZY minerał
+                    target_obj = min(active_minerals, key=lambda m: abs(self.x - m.x) + abs(self.y - m.y))
+            
+            # Jeśli znaleźliśmy cel wyznaczony przez SI, wołamy A*
+            if target_obj:
+                plan = astar_find_path(self.x, self.y, self.direction, target_obj.x, target_obj.y, env)
                 if plan:
                     self.current_plan = plan
                 else:
@@ -68,7 +88,7 @@ class Agent:
             else:
                 self.status = "IDLE"
                 return
-                
+
         if self.current_plan:
             action = self.current_plan.pop(0)
             if action == "TURN_LEFT":
@@ -108,6 +128,35 @@ class Agent:
 
         if not is_charging_at_station and self.status not in["MOVING", "HEAVY_DRAIN", "TURNING"]:
             self.status = "IDLE"
+
+    def _get_dist_to_mineral(self, env: Environment) -> float:
+        active_minerals = [m for m in env.objects if getattr(m, 'is_active', False) and m.type in ["Titanium", "Water Ice", "Hematite"]]
+        if not active_minerals:
+            return 100.0 # Jeśli brak minerałów, podajemy dużą wartość
+        return min(abs(self.x - m.x) + abs(self.y - m.y) for m in active_minerals)
+
+    def _get_dist_to_station(self, env: Environment) -> float:
+        active_stations = [s for s in env.objects if getattr(s, 'is_active', False) and s.type == "ChargingStation"]
+        if not active_stations:
+            return 100.0
+        return min(abs(self.x - s.x) + abs(self.y - s.y) for s in active_stations)
+
+    def decide_next_macro_action(self, env: Environment, trained_tree) -> str:
+        # Opakowujemy w pandas DataFrame, aby scikit-learn nie rzucał ostrzeżeń o braku nazw kolumn
+        state_df = pd.DataFrame([{
+            "battery_level": self.battery,
+            "time_of_day": env.time_of_day,
+            "solar_efficiency": self._calculate_solar_efficiency(env.time_of_day),
+            "weather_multiplier": self.WEATHER_MULTIPLIERS.get(env.weather, 1.0),
+            "terrain_type": env.get_terrain_type(self.x, self.y),
+            "dist_to_mineral": self._get_dist_to_mineral(env),
+            "dist_to_station": self._get_dist_to_station(env),
+            "inventory_size": len(self.inventory)
+        }])
+        
+        # Predykcja za pomocą modelu
+        decision = trained_tree.predict(state_df)[0]
+        return decision
 
     def _calculate_solar_efficiency(self, time_of_day: int) -> float:
         if 6 <= time_of_day <= 20:
