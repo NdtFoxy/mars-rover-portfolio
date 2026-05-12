@@ -61,16 +61,51 @@ class Environment:
     def is_within_bounds(self, x: int, y: int) -> bool:
         return 0 <= x < self.width and 0 <= y < self.height
 
-    def update_time_and_weather(self):
+    def update_time_and_weather(self) -> None:
+        """
+        Обновляет внутриигровое время и погодные условия.
+        Одно логическое действие (шаг) теперь равно 15 минутам (0.25 часа),
+        что делает смену дня и ночи более плавной.
+        """
         self.step_counter += 1
-        self.time_of_day = self.step_counter % 24
         
+        # 1 шаг = 0.25 часа. Цикл дня и ночи замедлен в 4 раза.
+        self.time_of_day = (self.step_counter * 0.25) % 24
+        
+        # Обновляем погоду каждые 8 шагов (раз в 2 игровых часа)
         if self.step_counter % 8 == 0:
-            self.weather = random.choices(
-                self.WEATHER_CONDITIONS, 
-                weights=self.WEATHER_WEIGHTS, 
-                k=1
-            )[0]
+            self.weather = self._get_smooth_weather_transition(self.weather)
+
+    def _get_smooth_weather_transition(self, current_weather: str) -> str:
+        """
+        Рассчитывает следующее погодное состояние на основе текущего (Цепи Маркова).
+        Предотвращает резкие визуальные скачки (например, 'Ясно' -> 'Буря') для Unreal Engine.
+        """
+        # Карта допустимых переходов: из ключа можно попасть только в значения списка
+        transitions = {
+            "Clear_Skies": ["Clear_Skies", "Partly_Cloudy", "Sand_Dust_Calm"],
+            "Partly_Cloudy": ["Clear_Skies", "Partly_Cloudy", "Cloudy"],
+            "Cloudy": ["Partly_Cloudy", "Cloudy", "Foggy"],
+            "Foggy": ["Cloudy", "Foggy", "Clear_Skies"],  # Туман может рассеяться в ясное небо
+            "Sand_Dust_Calm": ["Clear_Skies", "Sand_Dust_Calm", "Sand_Dust_Storm"],
+            "Sand_Dust_Storm": ["Sand_Dust_Calm", "Sand_Dust_Storm"] # Буря обязана сначала стихнуть
+        }
+
+        # Вероятности (веса) для каждого перехода (сумма должна быть логичной)
+        weights = {
+            "Clear_Skies": [60, 30, 10],       # 60% остаться ясным, 30% облачка, 10% легкая пыль
+            "Partly_Cloudy": [40, 40, 20],
+            "Cloudy": [30, 50, 20],
+            "Foggy": [30, 60, 10],
+            "Sand_Dust_Calm": [40, 40, 20],    # 40% прояснится, 40% останется, 20% усилится до бури
+            "Sand_Dust_Storm": [70, 30]        # 70% стихнуть, 30% продолжаться
+        }
+
+        possible_next_states = transitions.get(current_weather, ["Clear_Skies"])
+        state_weights = weights.get(current_weather, [100])
+
+        # Выбираем одно состояние на основе весов
+        return random.choices(possible_next_states, weights=state_weights, k=1)[0]
 
     def get_terrain_type(self, x: int, y: int) -> int:
         return self.grid[y][x]

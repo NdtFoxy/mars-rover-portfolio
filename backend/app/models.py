@@ -12,7 +12,7 @@ class AgentState(BaseModel):
 
 class EnvironmentState(BaseModel):
     step_counter: int
-    time_of_day: int
+    time_of_day: float
     weather: str
 
 class GameObjectState(BaseModel):
