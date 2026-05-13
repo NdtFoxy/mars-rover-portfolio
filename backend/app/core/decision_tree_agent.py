@@ -49,15 +49,31 @@ def generate_dataset(num_samples: int = 500) -> pd.DataFrame:
         # Atrybut 8: Zajętość ekwipunku
         inventory_size = len(agent.inventory)
         
-        if battery_level < 25:
+        if battery_level < 20: 
+            # 1. Krytyczny poziom baterii: ignorujemy wszystko, wracamy się ładować
             decision = "GO_TO_CHARGE"
-        elif battery_level < 40 and weather_multiplier < 0.5: # Zła pogoda, mało prądu
+            
+        elif battery_level < 60 and weather_multiplier <= 0.5: 
+            # 2. POGODA: Bateria jest w miarę ok (do 60%), ale pogoda jest fatalna. 
+            # Lepiej nie ryzykować i wrócić do bazy.
             decision = "GO_TO_CHARGE"
-        elif battery_level < 60 and dist_mineral > 10 and dist_station < 5: # Daleko do celu, stacja blisko
+            
+        elif battery_level < 50 and solar_efficiency < 0.3: 
+            # 3. PORA DNIA (SŁOŃCE): Bateria poniżej średniej i jest noc/wieczór (brak słońca).
+            # Bateria sama się nie naładuje (panele nie działają), idziemy do stacji.
             decision = "GO_TO_CHARGE"
-        elif inventory_size >= 8: # Pełen ekwipunek
+            
+        elif inventory_size >= 8: 
+            # 4. EKWIPUNEK: Pełny ekwipunek - idziemy zostawić surowce (do stacji)
             decision = "GO_TO_CHARGE"
+            
+        elif dist_mineral > 15 and battery_level < 70 and solar_efficiency < 0.5:
+            # 5. KOMBINACJA: Daleko do minerału, bateria średnia, mało słońca. 
+            # Zbyt ryzykowne, idziemy się ładować.
+            decision = "GO_TO_CHARGE"
+            
         else:
+            # W pozostałych przypadkach (dobra pogoda, jest słońce, bateria w normie)
             decision = "CONTINUE_MINING"
             
         data.append({
