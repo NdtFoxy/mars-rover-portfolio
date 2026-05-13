@@ -49,9 +49,9 @@ def generate_dataset(num_samples: int = 500) -> pd.DataFrame:
         # Atrybut 8: Zajętość ekwipunku
         inventory_size = len(agent.inventory)
         
-        if battery_level < 45:
+        if battery_level < 25:
             decision = "GO_TO_CHARGE"
-        elif battery_level < 40 and weather_multiplier < 0.5: # Zła pogoda, mało prąду
+        elif battery_level < 40 and weather_multiplier < 0.5: # Zła pogoda, mało prądu
             decision = "GO_TO_CHARGE"
         elif battery_level < 60 and dist_mineral > 10 and dist_station < 5: # Daleko do celu, stacja blisko
             decision = "GO_TO_CHARGE"
