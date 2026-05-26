@@ -30,9 +30,18 @@ class ChargingStation(GameObject):
         data["energy_pool"] = round(self.energy_pool, 2)
         return data
 
+# ---- NOWY KLASA OBIEKTU: BAZA NAUKOWA ----
+class ScienceBase(GameObject):
+    """
+    Dedykowana stacja na Marsie przeznaczona wyłącznie do zdawania i sprzedaży minerałów.
+    Nie oferuje ładowania energii.
+    """
+    def __init__(self, x: int, y: int):
+        super().__init__("ScienceBase", x, y)
+
 class Environment:
-    WEATHER_CONDITIONS =["Clear_Skies", "Cloudy", "Partly_Cloudy", "Foggy", "Sand_Dust_Calm", "Sand_Dust_Storm"]
-    WEATHER_WEIGHTS =[40, 15, 20, 10, 10, 5]
+    WEATHER_CONDITIONS = ["Clear_Skies", "Cloudy", "Partly_Cloudy", "Foggy", "Sand_Dust_Calm", "Sand_Dust_Storm"]
+    WEATHER_WEIGHTS = [40, 15, 20, 10, 10, 5]
 
     def __init__(self, width: int = 20, height: int = 15):
         self.width = width
@@ -42,8 +51,8 @@ class Environment:
         self.time_of_day: int = 0
         self.weather: str = "Clear_Skies"
         
-        self.grid: List[List[int]] =[]
-        self.objects: List[GameObject] =[]
+        self.grid: List[List[int]] = []
+        self.objects: List[GameObject] = []
         
         self.reset()
 
@@ -62,63 +71,62 @@ class Environment:
         return 0 <= x < self.width and 0 <= y < self.height
 
     def update_time_and_weather(self) -> None:
-        """
-        Обновляет внутриигровое время и погодные условия.
-        Одно логическое действие (шаг) теперь равно 15 минутам (0.25 часа),
-        что делает смену дня и ночи более плавной.
-        """
         self.step_counter += 1
-        
-        # 1 шаг = 0.25 часа. Цикл дня и ночи замедлен в 4 раза.
         self.time_of_day = (self.step_counter * 0.25) % 24
         
-        # Обновляем погоду каждые 8 шагов (раз в 2 игровых часа)
         if self.step_counter % 8 == 0:
             self.weather = self._get_smooth_weather_transition(self.weather)
 
+        self._respawn_minerals_if_needed()
+
+    def _respawn_minerals_if_needed(self) -> None:
+        active_minerals = [obj for obj in self.objects if obj.type in ["Titanium", "Water Ice", "Hematite"] and obj.is_active]
+        
+        if len(active_minerals) < 5:
+            needed = 10 - len(active_minerals)
+            mineral_names = ["Titanium", "Water Ice", "Hematite"]
+            occupied = set((obj.x, obj.y) for obj in self.objects if obj.is_active)
+            
+            for _ in range(needed):
+                x, y = self._get_free_sand_position(occupied)
+                occupied.add((x, y))
+                mineral_name = random.choice(mineral_names)
+                self.objects.append(Mineral(mineral_name, x, y))
+
     def _get_smooth_weather_transition(self, current_weather: str) -> str:
-        """
-        Рассчитывает следующее погодное состояние на основе текущего (Цепи Маркова).
-        Предотвращает резкие визуальные скачки (например, 'Ясно' -> 'Буря') для Unreal Engine.
-        """
-        # Карта допустимых переходов: из ключа можно попасть только в значения списка
         transitions = {
             "Clear_Skies": ["Clear_Skies", "Partly_Cloudy", "Sand_Dust_Calm"],
             "Partly_Cloudy": ["Clear_Skies", "Partly_Cloudy", "Cloudy"],
             "Cloudy": ["Partly_Cloudy", "Cloudy", "Foggy"],
-            "Foggy": ["Cloudy", "Foggy", "Clear_Skies"],  # Туман может рассеяться в ясное небо
+            "Foggy": ["Cloudy", "Foggy", "Clear_Skies"],
             "Sand_Dust_Calm": ["Clear_Skies", "Sand_Dust_Calm", "Sand_Dust_Storm"],
-            "Sand_Dust_Storm": ["Sand_Dust_Calm", "Sand_Dust_Storm"] # Буря обязана сначала стихнуть
+            "Sand_Dust_Storm": ["Sand_Dust_Calm", "Sand_Dust_Storm"]
         }
 
-        # Вероятности (веса) для каждого перехода (сумма должна быть логичной)
         weights = {
-            "Clear_Skies": [60, 30, 10],       # 60% остаться ясным, 30% облачка, 10% легкая пыль
+            "Clear_Skies": [60, 30, 10],
             "Partly_Cloudy": [40, 40, 20],
             "Cloudy": [30, 50, 20],
             "Foggy": [30, 60, 10],
-            "Sand_Dust_Calm": [40, 40, 20],    # 40% прояснится, 40% останется, 20% усилится до бури
-            "Sand_Dust_Storm": [70, 30]        # 70% стихнуть, 30% продолжаться
+            "Sand_Dust_Calm": [40, 40, 20],
+            "Sand_Dust_Storm": [70, 30]
         }
 
         possible_next_states = transitions.get(current_weather, ["Clear_Skies"])
         state_weights = weights.get(current_weather, [100])
 
-        # Выбираем одно состояние на основе весов
         return random.choices(possible_next_states, weights=state_weights, k=1)[0]
 
     def get_terrain_type(self, x: int, y: int) -> int:
         return self.grid[y][x]
 
     def _generate_terrain(self) -> None:
-        """Generuje siatkę: 0 (Piasek ~70%), 1 (Skały ~20%), 2 (Kratery ~10%)"""
-        self.grid =[]
+        self.grid = []
         for _ in range(self.height):
             row = [random.choices([0, 1, 2], weights=[70, 20, 10], k=1)[0] for _ in range(self.width)]
             self.grid.append(row)
 
     def _get_free_sand_position(self, occupied: Set[Tuple[int, int]] = None) -> Tuple[int, int]:
-        """Szuka wolnego pola tylko na piasku (0)"""
         if occupied is None:
             occupied = set((obj.x, obj.y) for obj in self.objects if obj.is_active)
             
@@ -129,19 +137,26 @@ class Environment:
                 return x, y
 
     def _populate_objects(self) -> None:
-        mineral_names =["Titanium", "Water Ice", "Hematite"]
+        mineral_names = ["Titanium", "Water Ice", "Hematite"]
         occupied_positions: Set[Tuple[int, int]] = set()
 
+        # 10 minerałów
         for _ in range(10):
             x, y = self._get_free_sand_position(occupied_positions)
             occupied_positions.add((x, y))
             mineral_name = random.choice(mineral_names)
             self.objects.append(Mineral(mineral_name, x, y))
 
-        for _ in range(3):
+        # 2 stacje ładowania (zamiast 3)
+        for _ in range(2):
             x, y = self._get_free_sand_position(occupied_positions)
             occupied_positions.add((x, y))
             self.objects.append(ChargingStation(x, y))
+
+        # 1 Dedykowana Baza Naukowa (ScienceBase) do zdawania ładunku
+        x, y = self._get_free_sand_position(occupied_positions)
+        occupied_positions.add((x, y))
+        self.objects.append(ScienceBase(x, y))
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -149,5 +164,5 @@ class Environment:
             "time_of_day": self.time_of_day,
             "weather": self.weather,
             "grid": self.grid,
-            "objects":[obj.to_dict() for obj in self.objects if obj.is_active]
+            "objects": [obj.to_dict() for obj in self.objects if obj.is_active]
         }

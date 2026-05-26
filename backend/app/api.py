@@ -1,6 +1,13 @@
 import os
+import pandas as pd
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.optim as optim
 from fastapi import APIRouter
-from sklearn.tree import DecisionTreeClassifier
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import classification_report
 
 from .models import GameState
 from .core.environment import Environment
@@ -10,42 +17,180 @@ from .core.decision_tree_agent import generate_dataset
 router = APIRouter()
 
 # =====================================================================
-# ИНИЦИАЛИЗАЦИЯ ИИ 
+# DEFINICJA ARCHITEKTURY SIECI NEURONOWEJ (PyTorch MLP)
 # =====================================================================
-print("[SYSTEM] Initializing Decision Core...")
+class MissionControlNN(nn.Module):
+    def __init__(self, input_dim=8, output_dim=2):
+        super(MissionControlNN, self).__init__()
+        self.net = nn.Sequential(
+            nn.Linear(input_dim, 32),
+            nn.ReLU(),
+            nn.Linear(32, 16),
+            nn.ReLU(),
+            nn.Linear(16, output_dim)
+        )
 
-dataset = generate_dataset(500)
+    def forward(self, x):
+        return self.net(x)
+
+# =====================================================================
+# BEZPIECZNA GENERACJA I BALANSOWANIE DANYCH (Wymóg: >= 1000 na klasę)
+# =====================================================================
+def generate_balanced_dataset(required_per_class: int = 1000):
+    print(f"[SYSTEM] Generowanie zbalansowanego zbioru danych (min. {required_per_class} próbek na klasę)...")
+    accumulated_rows = []
+    counts = {"GO_TO_CHARGE": 0, "CONTINUE_MINING": 0}
+    
+    while counts["GO_TO_CHARGE"] < required_per_class or counts["CONTINUE_MINING"] < required_per_class:
+        batch = generate_dataset(500)
+        for _, row in batch.iterrows():
+            dist = row["dist_to_station"]
+            battery = row["battery_level"]
+            inventory_size = row["inventory_size"]
+            safety_margin = 15.0
+            energy_needed_to_return = (dist * 1.8) + safety_margin
+            
+            if battery < energy_needed_to_return or inventory_size >= 8:
+                corrected_decision = "GO_TO_CHARGE"
+            else:
+                corrected_decision = row["target_decision"]
+                
+            if corrected_decision in counts:
+                if counts[corrected_decision] < required_per_class:
+                    new_row = row.to_dict()
+                    new_row["target_decision"] = corrected_decision
+                    accumulated_rows.append(new_row)
+                    counts[corrected_decision] += 1
+                    
+    df_balanced = pd.DataFrame(accumulated_rows)
+    df_balanced.to_csv("rover_training_data.csv", index=False)
+    print(f"[SYSTEM] Dane treningowe zapisano do 'rover_training_data.csv'.")
+    return df_balanced
+
+# =====================================================================
+# RAPORT DIAGNOSTYCZNY DLA PROFESORA (PLIK + TERMINAL)
+# =====================================================================
+def run_diagnostic_report(model, scaler, class_mapping, reverse_mapping, val_metrics_text):
+    full_report = []
+    full_report.append("="*80)
+    full_report.append("  SZCZEGÓŁOWY RAPORT DIAGNOSTYCZNY MODELU SIECI NEURONOWEJ (ARES-ML)")
+    full_report.append("="*80)
+    full_report.append("\n[1. METRYKI KLASYFIKACJI WALIDACYJNEJ]:\n")
+    full_report.append(val_metrics_text)
+    full_report.append("\n" + "="*80)
+    full_report.append("[2. SYMULACJA SCENARIUSZY TESTOWYCH - ANALIZA BEZPIECZEŃSTWA]:\n")
+
+    scenarios = [
+        {"desc": "Pełna bateria, blisko minerał, daleka baza", "features": [90.0, 12.0, 1.0, 1.0, 0.0, 3.0, 20.0, 2.0]},
+        {"desc": "Słaba bateria (30%), stacja bardzo daleko (18 pól) -> Krytyczny powrót", "features": [30.0, 12.0, 1.0, 1.0, 0.0, 5.0, 18.0, 1.0]},
+        {"desc": "Średnia bateria (40%), stacja blisko (5 pól) -> Bezpieczna regeneracja", "features": [40.0, 8.0, 0.5, 0.8, 1.0, 2.0, 5.0, 4.0]},
+        {"desc": "Bateria 80%, pełny ekwipunek (8/8) -> Nakaz powrotu do bazy i sprzedaży", "features": [80.0, 14.0, 0.9, 1.0, 0.0, 4.0, 10.0, 8.0]}
+    ]
+    
+    model.eval()
+    terminal_summary = []
+    
+    for i, sc in enumerate(scenarios, 1):
+        test_input = np.array([sc["features"]])
+        test_input_scaled = scaler.transform(test_input)
+        test_tensor = torch.tensor(test_input_scaled, dtype=torch.float32)
+        
+        with torch.no_grad():
+            output = model(test_tensor)
+            pred_idx = torch.argmax(output, dim=1).item()
+            decision = reverse_mapping[pred_idx]
+            
+        full_report.append(f"Scenariusz {i}: {sc['desc']}")
+        full_report.append(f"  Wejście: Bat={sc['features'][0]}%, DystStacja={sc['features'][6]}, Ekwipunek={sc['features'][7]}/8")
+        full_report.append(f"  Decyzja Sieci: {decision}")
+        full_report.append("-" * 50)
+        
+        terminal_summary.append(
+            f" Scenariusz {i} (Bat: {sc['features'][0]}%, Ekwipunek: {sc['features'][7]}/8) -> Decyzja: \033[92m{decision}\033[0m"
+        )
+        
+    full_report.append("\n[KONIEC RAPORTU]")
+    
+    with open("nn_model_report.txt", "w", encoding="utf-8") as f:
+        f.write("\n".join(full_report))
+        
+    print("\n" + "="*70)
+    print("  SKRÓCONY RAPORT SIECI NEURONOWEJ (Pełny w pliku 'nn_model_report.txt')")
+    print("="*70)
+    print("[1. METRYKI WALIDACJI (DOKŁADNOŚĆ)]:")
+    metric_lines = val_metrics_text.split('\n')
+    accuracy_line = next((l for l in metric_lines if "accuracy" in l), "Accuracy: OK")
+    print(f"  {accuracy_line.strip()}")
+    print("\n[2. PREdykcje SCENARIUSZY SCENICZNYCH]:")
+    for s_line in terminal_summary:
+        print(s_line)
+    print("="*70 + "\n")
+
+# =====================================================================
+# INICJALIZACJA I PROCES UCZENIA SIECI NEURONOWEJ
+# =====================================================================
+print("[SYSTEM] Inicjalizacja rdzenia decyzyjnego opartego o sieć neuronową...")
+
+raw_dataset = generate_balanced_dataset(1000)
 features = [
     "battery_level", "time_of_day", "solar_efficiency", 
     "weather_multiplier", "terrain_type", "dist_to_mineral", 
     "dist_to_station", "inventory_size"
 ]
-X = dataset[features]
-y = dataset["target_decision"]
 
-trained_tree = DecisionTreeClassifier(criterion='entropy', max_depth=4, random_state=42)
-trained_tree.fit(X, y)
+X_raw = raw_dataset[features].values
+class_mapping = {"GO_TO_CHARGE": 0, "CONTINUE_MINING": 1}
+reverse_mapping = {0: "GO_TO_CHARGE", 1: "CONTINUE_MINING"}
+y_raw = raw_dataset["target_decision"].map(class_mapping).values
 
-print("[SYSTEM] ML Model synchronized. Operational readiness: 100%.")
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X_raw)
+
+X_train, X_val, y_train, y_val = train_test_split(X_scaled, y_raw, test_size=0.2, random_state=42)
+
+X_train_tensor = torch.tensor(X_train, dtype=torch.float32)
+y_train_tensor = torch.tensor(y_train, dtype=torch.long)
+X_val_tensor = torch.tensor(X_val, dtype=torch.float32)
+y_val_tensor = torch.tensor(y_val, dtype=torch.long)
+
+trained_nn = MissionControlNN(input_dim=8, output_dim=2)
+criterion = nn.CrossEntropyLoss()
+optimizer = optim.Adam(trained_nn.parameters(), lr=0.01)
+
+trained_nn.train()
+epochs = 80
+for epoch in range(epochs):
+    optimizer.zero_grad()
+    outputs = trained_nn(X_train_tensor)
+    loss = criterion(outputs, y_train_tensor)
+    loss.backward()
+    optimizer.step()
+
+trained_nn.eval()
+with torch.no_grad():
+    val_outputs = trained_nn(X_val_tensor)
+    _, predicted = torch.max(val_outputs, 1)
+    y_pred = predicted.numpy()
+
+val_metrics_text = classification_report(y_val, y_pred, target_names=list(class_mapping.keys()))
+
+run_diagnostic_report(trained_nn, scaler, class_mapping, reverse_mapping, val_metrics_text)
+
+print("[SYSTEM] Sieć neuronowa została pomyślnie wytrenowana i zsynchronizowana.")
 
 # =====================================================================
-# ГЛОБАЛЬНЫЕ ОБЪЕКТЫ
+# GLOBALNE OBIEKTY
 # =====================================================================
 env = Environment(width=20, height=15)
 start_x, start_y = env.reset()
 agent = Agent(x=start_x, y=start_y)
 
 # =====================================================================
-# ТЕРМИНАЛ УПРАВЛЕНИЯ MARS | SPACE LABORATORY (FIXED ALIGNMENT)
+# TERMINAL UPRZĘŻY WIZUALIZACYJNEJ (DASHBOARD)
 # =====================================================================
 def print_pretty_console(environment: Environment, current_agent: Agent):
-    """
-    Профессиональный дашборд MARS | SPACE LABORATORY.
-    Исправлены ошибки выравнивания рамок и изменен визуальный стиль.
-    """
     os.system('cls' if os.name == 'nt' else 'clear')
 
-    # Цветовая схема
     GREEN = "\033[92m"
     YELLOW = "\033[93m"
     RED = "\033[91m"
@@ -53,60 +198,69 @@ def print_pretty_console(environment: Environment, current_agent: Agent):
     BOLD = "\033[1m"
     RESET = "\033[0m"
 
-    # Определяем цвет батареи
     b_val = current_agent.battery
     b_color = GREEN if b_val > 50 else YELLOW if b_val > 20 else RED
-    
-    # Расчет ширины (20 клеток по 2 символа + рамки = 44 символа)
-    # Ширина контента внутри рамки всегда 40 символов
     UI_WIDTH = 40
 
+    active_minerals_count = sum(1 for obj in environment.objects if obj.type in ["Titanium", "Water Ice", "Hematite"] and obj.is_active)
+
     def draw_line(content, color=RESET):
-        """Вспомогательная функция для отрисовки строки в рамке"""
-        # Очищаем контент от ANSI кодов для корректного замера длины
         clean_content = content.replace(GREEN, "").replace(YELLOW, "").replace(RED, "").replace(CYAN, "").replace(BOLD, "").replace(RESET, "")
         padding = UI_WIDTH - len(clean_content)
         print(f"║ {color}{content}{RESET}{' ' * padding} ║")
 
-    # 1. Заголовок
     print("╔" + "═" * (UI_WIDTH + 2) + "╗")
-    draw_line(f"{BOLD}MARS | SPACE LABORATORY{RESET}")
+    draw_line(f"{BOLD}MARS | SPACE LABORATORY (NEURAL NET ACTIVE){RESET}")
     draw_line("PROJECT ARES: SURFACE EXPLORATION UNIT")
     print("╠" + "═" * (UI_WIDTH + 2) + "╣")
 
-    # 2. Данные телеметрии
     draw_line(f"MISSION TIME : {environment.time_of_day:>5.2f} SOL")
     draw_line(f"WEATHER      : {environment.weather.replace('_', ' ')}")
     
-    # Прогресс-бар батареи (10 сегментов)
     filled = int(b_val / 10)
     battery_bar = f"[{'█' * filled}{'░' * (10 - filled)}]"
     draw_line(f"ENERGY LEVEL : {b_color}{battery_bar} {b_val:>5.1f}%{RESET}")
     
     draw_line(f"ROVER STATUS : {current_agent.status}")
     draw_line(f"PAYLOAD      : {len(current_agent.inventory)}/8 SAMPLES")
+    draw_line(f"BUDGET       : {YELLOW}${current_agent.money:>6.1f}{RESET}")
+    draw_line(f"MINERALS MAP : {active_minerals_count:>2d} ACTIVE")
     print("╠" + "═" * (UI_WIDTH + 2) + "╣")
 
-    # 3. Визуализация поверхности (Карта)
-    # Здесь каждая клетка занимает ровно 2 символа ширины
-    for y in range(environment.height):
+    # ---- MAP RENDERER Z NAPRAWIONĄ SZEROKOŚCIĄ ZNAKÓW ----
+    for y_idx in range(environment.height):
         row = ""
-        for x in range(environment.width):
-            if current_agent.x == x and current_agent.y == y:
-                row += "🤖" # Ровер
+        for x_idx in range(environment.width):
+            if current_agent.x == x_idx and current_agent.y == y_idx:
+                row += "🤖 "  # Dodana spacja
             else:
-                obj = next((o for o in environment.objects if o.x == x and o.y == y and o.is_active), None)
+                obj = next((o for o in environment.objects if o.x == x_idx and o.y == y_idx and o.is_active), None)
                 if obj:
-                    row += "⚡️" if obj.type == "ChargingStation" else "💎"
+                    if obj.type == "ChargingStation":
+                        row += "⚡ "  # Dodana spacja
+                    elif obj.type == "ScienceBase":
+                        row += "🚀 "  # Dodana spacja
+                    elif obj.type == "Titanium":
+                        row += "🔘 "  # Dodana spacja
+                    elif obj.type == "Water Ice":
+                        row += "💎 "  # Dodana spacja
+                    elif obj.type == "Hematite":
+                        row += "🔴 "  # Dodana spacja
+                    else:
+                        row += "💎 "  # Dodana spacja
                 else:
-                    t = environment.get_terrain_type(x, y)
-                    if t == 0: row += "  " # Пустое пространство 
-                    elif t == 1: row += "🪨 " # Камни
-                    else: row += "⬛"        # Кратер
+                    t = environment.get_terrain_type(x_idx, y_idx)
+                    if t == 0: 
+                        row += "  "   # 2 spacje dla pustego pola
+                    elif t == 1: 
+                        row += "🪨 "  # Skała + spacja
+                    else: 
+                        row += "⚫ "  # Zmieniono krater na bezpieczne czarne kółko + spacja
         print(f"║ {row} ║")
 
     print("╚" + "═" * (UI_WIDTH + 2) + "╝")
     print(f"[ telemetry.link ] step: {environment.step_counter:04d} | data_sync: OK")
+    print("🚀 Baza | ⚡ Ładowarka | 🔘 Tytan ($100) | 💎 Lód ($50) | 🔴 Hematyt ($30) | 🪨 Skała | ⚫ Krater")
 
 # =====================================================================
 # API ENDPOINTS
@@ -114,7 +268,6 @@ def print_pretty_console(environment: Environment, current_agent: Agent):
 
 @router.get("/state", response_model=GameState)
 async def get_current_state():
-    """Сбор текущих данных для внешних систем (Unreal Engine / Web)."""
     env_dict = env.to_dict()
     return GameState(
         agent=agent.to_dict(),
@@ -129,8 +282,7 @@ async def get_current_state():
 
 @router.post("/step", response_model=GameState)
 async def make_next_step():
-    """Выполнение одиночного командного цикла."""
-    agent.follow_plan_or_search(env, trained_tree=trained_tree)
+    agent.follow_plan_or_search(env, trained_nn=trained_nn, scaler=scaler, reverse_mapping=reverse_mapping)
     agent.interact_and_recharge(env)
     env.update_time_and_weather()
     print_pretty_console(env, agent)
@@ -138,10 +290,9 @@ async def make_next_step():
 
 @router.post("/step_multiple/{count}", response_model=GameState)
 async def make_multiple_steps(count: int):
-    """Пакетное выполнение команд (Fast-Forward)."""
     for _ in range(count):
         if agent.status == "DEAD": break
-        agent.follow_plan_or_search(env, trained_tree=trained_tree)
+        agent.follow_plan_or_search(env, trained_nn=trained_nn, scaler=scaler, reverse_mapping=reverse_mapping)
         agent.interact_and_recharge(env)
         env.update_time_and_weather()
         
@@ -150,7 +301,6 @@ async def make_multiple_steps(count: int):
 
 @router.post("/restart", response_model=GameState)
 async def restart_simulation():
-    """Сброс и реинициализация миссии."""
     global env, agent
     start_x, start_y = env.reset()
     agent = Agent(x=start_x, y=start_y)
