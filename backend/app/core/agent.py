@@ -248,6 +248,7 @@ class Agent:
             "battery": round(self.battery, 2),
             "inventory": self.inventory,
             "money": round(self.money, 2),
+            "nn_thought": self.nn_thought,
             "status": self.status,
             "current_plan": self.current_plan
         }

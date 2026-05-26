@@ -10,7 +10,8 @@ class AgentState(BaseModel):
     status: str
     current_plan: List[str]
     money: float = 0.0
-
+    nn_thought: str = "MINING 0.0% | CHARGE 0.0%"
+    
 class EnvironmentState(BaseModel):
     step_counter: int
     time_of_day: float
