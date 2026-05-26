@@ -4,6 +4,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import random 
 from fastapi import APIRouter
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
@@ -17,19 +18,23 @@ from .core.decision_tree_agent import generate_dataset
 router = APIRouter()
 
 # =====================================================================
-# KONWERSJA TERENU NA OBRAZ 3x3 (9 Pikseli) - Wymóg Profesora
+# KONWERSJA TERENU NA OBRAZ 3x3 Z SZUMEM LOSOWYM (Sensor Noise)
 # =====================================================================
 def terrain_to_pixels(terrain_type):
-    """
-    Konwertuje kod terenu (0, 1, 2) na płaską macierz pikseli 3x3 (wartości od 0 do 255).
-    Dzięki temu sieć decyzyjna uczy się bezpośrednio na obrazie terenu spod kamery łazika.
-    """
     if terrain_type == 0:   # Piasek (Sand)
-        return [220, 220, 220, 210, 210, 210, 220, 220, 220] # Jasny jednolity piasek
+        base = [220, 220, 220, 210, 210, 210, 220, 220, 220]
     elif terrain_type == 1: # Skała (Rock)
-        return [80, 180, 80, 180, 80, 180, 80, 180, 80]     # Kontrastowa tekstura skały
+        base = [80, 180, 80, 180, 80, 180, 80, 180, 80]
     else:                   # Krater (Crater)
-        return [50, 50, 50, 50, 10, 50, 50, 50, 50]         # Ciemny środek krateru
+        base = [50, 50, 50, 50, 10, 50, 50, 50, 50]
+    
+    noisy_pixels = []
+    for val in base:
+        noise = random.randint(-15, 15)
+        noisy_val = max(0, min(255, val + noise))
+        noisy_pixels.append(noisy_val)
+        
+    return noisy_pixels
 
 # =====================================================================
 # DEFINICJA ARCHITEKTURY SIECI NEURONOWEJ (PyTorch MLP)
@@ -62,8 +67,12 @@ def generate_balanced_dataset(required_per_class: int = 1000):
             dist = row["dist_to_station"]
             battery = row["battery_level"]
             inventory_size = row["inventory_size"]
-            safety_margin = 15.0
-            energy_needed_to_return = (dist * 1.8) + safety_margin
+            
+            # 🚨 NAPRAWA BŁĘDU ŚMIERCI (ZWIĘKSZONY MARGINES BEZPIECZEŃSTWA)
+            # Dystans * 2.5 (bo skały kosztują 2.0, a obrót 1.0)
+            # Żelazna rezerwa 30.0% na wypadek nocy (brak słońca po 20:00)
+            safety_margin = 30.0  
+            energy_needed_to_return = (dist * 2.5) + safety_margin
             
             if battery < energy_needed_to_return or inventory_size >= 8:
                 corrected_decision = "GO_TO_CHARGE"
@@ -290,9 +299,6 @@ def print_pretty_console(environment: Environment, current_agent: Agent):
 
     print("╠" + "═" * (UI_WIDTH + 2) + "╣")
     
-    # =====================================================================
-    # 📷 OBSZAR WIZUALIZACJI: WIDOK Z KAMERY POKŁADOWEJ
-    # =====================================================================
     current_terrain = environment.get_terrain_type(current_agent.x, current_agent.y)
     current_obj = next((o for o in environment.objects if o.x == current_agent.x and o.y == current_agent.y and o.is_active), None)
     
@@ -337,15 +343,11 @@ def print_pretty_console(environment: Environment, current_agent: Agent):
             
     print("╠" + "═" * (UI_WIDTH + 2) + "╣")
     
-    # =====================================================================
-    # 🧠 TŁO ANALIZY DANYCH W SIECI (WIZUALIZACJA MATRYCY 3x3)
-    # =====================================================================
     draw_line(" [ SYSTEM ANALIZY DANYCH W TLE (ML) ]")
     
     solar_eff = current_agent._calculate_solar_efficiency(environment.time_of_day)
     weather_mult = current_agent.WEATHER_MULTIPLIERS.get(environment.weather, 1.0)
     
-    # 1. Pobieramy wartości pikseli dla aktualnego terenu
     pixels = terrain_to_pixels(current_terrain)
     p_row1 = f"[{pixels[0]:>3}, {pixels[1]:>3}, {pixels[2]:>3}]"
     p_row2 = f"[{pixels[3]:>3}, {pixels[4]:>3}, {pixels[5]:>3}]"
@@ -353,15 +355,13 @@ def print_pretty_console(environment: Environment, current_agent: Agent):
     
     draw_line(f" TELEMETRIA: Bat:{b_val:.0f}%|Czas:{environment.time_of_day:.1f}h|Pogoda:{weather_mult:.1f}")
     
-    # ---- FIZYCZNA WIZUALIZACJA TRZECH WIERSZY PIKSELI ----
-    draw_line(" MATRYCA PIKSELI KAMERY PODWOZIA (3x3):")
+    draw_line(" MACIERZ PIKSELI KAMERY (3x3 Grayscale):")
     draw_line(f"   {p_row1}")
     draw_line(f"   {p_row2}")
     draw_line(f"   {p_row3}")
     
     draw_line(f" NEURONY: Wejście: 16 | L1: 32 (ReLU) | L2: 16")
     
-    # Bezpieczne pobranie ostatecznej decyzji sieci
     mining_p = current_agent.nn_confidence['MINING']
     charge_p = current_agent.nn_confidence['CHARGE']
     selected_act = "MINING" if mining_p > charge_p else "CHARGE"

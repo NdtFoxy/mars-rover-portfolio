@@ -178,25 +178,33 @@ class Agent:
             return 100.0
         return min(abs(self.x - s.x) + abs(self.y - s.y) for s in active_stations)
 
-    # ---- MAPOWANIE TERENU NA WIZUALNY MATRYCĘ 3x3 (Wymóg Profesora) ----
+    # ---- MAPOWANIE TERENU NA WIZUALNY MATRYCĘ 3x3 Z SZUMEM LOSOWYM ----
     def terrain_to_pixels(self, terrain_type: int) -> list:
         """
-        Konwertuje kod terenu na płaską macierz pikseli 3x3 (9 wartości od 0 do 255).
-        Dzięki temu sieć uczy się bezpośrednio na obrazie terenu spod kamery łazika.
+        Konwertuje kod terenu na płaską macierz pikseli 3x3 (9 pikseli) 
+        z dodanym szumem losowym w zakresie ±15. Zapobiega to przeuczeniu (overfitting).
         """
         if terrain_type == 0:   # Piasek (Sand)
-            return [220, 220, 220, 210, 210, 210, 220, 220, 220] # Jasny jednolity piasek
+            base = [220, 220, 220, 210, 210, 210, 220, 220, 220]
         elif terrain_type == 1: # Skała (Rock)
-            return [80, 180, 80, 180, 80, 180, 80, 180, 80]     # Kontrastowa tekstura skały
+            base = [80, 180, 80, 180, 80, 180, 80, 180, 80]
         else:                   # Krater (Crater)
-            return [50, 50, 50, 50, 10, 50, 50, 50, 50]         # Ciemny środek krateru
+            base = [50, 50, 50, 50, 10, 50, 50, 50, 50]
+        
+        # Generowanie losowego szumu sensora kamery
+        noisy_pixels = []
+        for val in base:
+            noise = random.randint(-15, 15)
+            # Normalizacja do dopuszczalnych granic pikseli [0, 255]
+            noisy_val = max(0, min(255, val + noise))
+            noisy_pixels.append(noisy_val)
+            
+        return noisy_pixels
 
     def decide_next_macro_action(self, env: Environment, trained_nn, scaler, reverse_mapping: dict) -> str:
-        # Pobranie kodu terenu i konwersja na obraz 3x3 (9 pikseli)
         terrain = env.get_terrain_type(self.x, self.y)
         pixels = self.terrain_to_pixels(terrain)
 
-        # Tworzymy wektor 16 cech (7 telemetria + 9 piksele obrazu)
         raw_features = np.array([[
             self.battery,
             env.time_of_day,
