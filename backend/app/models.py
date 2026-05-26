@@ -9,6 +9,7 @@ class AgentState(BaseModel):
     inventory: List[str]
     status: str
     current_plan: List[str]
+    money: float = 0.0
 
 class EnvironmentState(BaseModel):
     step_counter: int

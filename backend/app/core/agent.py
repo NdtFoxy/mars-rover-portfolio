@@ -22,6 +22,7 @@ class Agent:
         self.money: float = 0.0
         self.status: str = "IDLE"
         self.current_plan: List[str] = []
+        self.nn_confidence = {"MINING": 0.0, "CHARGE": 0.0}
 
     def turn_left(self):
         dirs = ['N', 'E', 'S', 'W']
@@ -67,7 +68,6 @@ class Agent:
             if len(self.inventory) >= 8:
                 decision = "GO_TO_CHARGE"
                 
-            # ---- INTELIGENTNE KIEROWANIE DOSTAWAMI (Wymóg: rozdzielone stacje) ----
             if decision == "GO_TO_CHARGE":
                 if self.battery < 45.0:
                     active_stations = [s for s in env.objects if s.is_active and s.type == "ChargingStation"]
@@ -82,8 +82,6 @@ class Agent:
                 active_minerals = [m for m in env.objects if m.is_active and m.type in ["Titanium", "Water Ice", "Hematite"]]
                 if active_minerals:
                     prices = {"Titanium": 100.0, "Water Ice": 50.0, "Hematite": 30.0}
-                    # WYBÓR CELU O NAJWYŻSZEJ WYDAJNOŚCI FINANSOWEJ
-                    # Minimalizujemy (Dystans + 1) / (Cena / Max_Cena), co promuje droższe materiały
                     target_obj = min(
                         active_minerals, 
                         key=lambda m: (abs(self.x - m.x) + abs(self.y - m.y) + 1) / (prices.get(m.type, 10.0) / 100.0)
@@ -123,7 +121,6 @@ class Agent:
 
         for obj in env.objects:
             if obj.is_active and obj.x == self.x and obj.y == self.y:
-                # 1. ZDAWANIE MINERAŁÓW TYLKO W BAZIE NAUKOWEJ
                 if obj.type == "ScienceBase":
                     if self.inventory:
                         for sample in self.inventory:
@@ -131,7 +128,6 @@ class Agent:
                         self.inventory = [] 
                         self.status = "UNLOADING"
                 
-                # 2. ŁADOWANIE TYLKO NA STACJI ŁADOWANIA
                 elif obj.type == "ChargingStation":
                     charge_needed = 100.0 - self.battery
                     if charge_needed > 0 and obj.energy_pool > 0:
@@ -143,7 +139,6 @@ class Agent:
                         if obj.energy_pool <= 0:
                             obj.is_active = False
                             
-                # 3. ZBIERANIE MINERAŁÓW (Wyeliminowano błąd pomijania obiektów)
                 elif obj.type in ["Titanium", "Water Ice", "Hematite"]:
                     if len(self.inventory) < 8:
                         self.inventory.append(obj.type)
@@ -158,10 +153,6 @@ class Agent:
             self.status = "IDLE"
 
     def _get_dist_to_mineral(self, env: Environment) -> float:
-        """
-        Oblicza efektywną odległość do minerałów, skorygowaną o ich wartość rynkową.
-        Im cenniejszy minerał, tym bliższy (bardziej atrakcyjny) wydaje się sieci neuronowej.
-        """
         active_minerals = [m for m in env.objects if getattr(m, 'is_active', False) and m.type in ["Titanium", "Water Ice", "Hematite"]]
         if not active_minerals:
             return 100.0
@@ -175,9 +166,7 @@ class Agent:
         effective_distances = []
         for m in active_minerals:
             phys_dist = abs(self.x - m.x) + abs(self.y - m.y)
-            # Im droższy minerał, tym większy wskaźnik ceny (max 1.0)
             price_factor = prices.get(m.type, 10.0) / 100.0
-            # Dystans efektywny maleje dla droższych materiałów
             eff_dist = (phys_dist + 1) / price_factor
             effective_distances.append(eff_dist)
             
@@ -189,23 +178,45 @@ class Agent:
             return 100.0
         return min(abs(self.x - s.x) + abs(self.y - s.y) for s in active_stations)
 
+    # ---- MAPOWANIE TERENU NA WIZUALNY MATRYCĘ 3x3 (Wymóg Profesora) ----
+    def terrain_to_pixels(self, terrain_type: int) -> list:
+        """
+        Konwertuje kod terenu na płaską macierz pikseli 3x3 (9 wartości od 0 do 255).
+        Dzięki temu sieć uczy się bezpośrednio na obrazie terenu spod kamery łazika.
+        """
+        if terrain_type == 0:   # Piasek (Sand)
+            return [220, 220, 220, 210, 210, 210, 220, 220, 220] # Jasny jednolity piasek
+        elif terrain_type == 1: # Skała (Rock)
+            return [80, 180, 80, 180, 80, 180, 80, 180, 80]     # Kontrastowa tekstura skały
+        else:                   # Krater (Crater)
+            return [50, 50, 50, 50, 10, 50, 50, 50, 50]         # Ciemny środek krateru
+
     def decide_next_macro_action(self, env: Environment, trained_nn, scaler, reverse_mapping: dict) -> str:
+        # Pobranie kodu terenu i konwersja na obraz 3x3 (9 pikseli)
+        terrain = env.get_terrain_type(self.x, self.y)
+        pixels = self.terrain_to_pixels(terrain)
+
+        # Tworzymy wektor 16 cech (7 telemetria + 9 piksele obrazu)
         raw_features = np.array([[
             self.battery,
             env.time_of_day,
             self._calculate_solar_efficiency(env.time_of_day),
             self.WEATHER_MULTIPLIERS.get(env.weather, 1.0),
-            env.get_terrain_type(self.x, self.y),
-            self._get_dist_to_mineral(env), # Przekazywanie efektywnej odległości korygowanej ceną do sieci neuronowej
+            self._get_dist_to_mineral(env),
             self._get_dist_to_station(env),
             len(self.inventory)
-        ]])
+        ] + pixels])
         
         scaled_features = scaler.transform(raw_features)
         input_tensor = torch.tensor(scaled_features, dtype=torch.float32)
         
         with torch.no_grad():
             outputs = trained_nn(input_tensor)
+            
+            probabilities = torch.nn.functional.softmax(outputs, dim=1).numpy()[0]
+            self.nn_confidence["CHARGE"] = float(probabilities[0] * 100)
+            self.nn_confidence["MINING"] = float(probabilities[1] * 100)
+            
             class_idx = torch.argmax(outputs, dim=1).item()
             
         decision = reverse_mapping.get(class_idx, "CONTINUE_MINING")

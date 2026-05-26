@@ -17,10 +17,25 @@ from .core.decision_tree_agent import generate_dataset
 router = APIRouter()
 
 # =====================================================================
+# KONWERSJA TERENU NA OBRAZ 3x3 (9 Pikseli) - Wymóg Profesora
+# =====================================================================
+def terrain_to_pixels(terrain_type):
+    """
+    Konwertuje kod terenu (0, 1, 2) na płaską macierz pikseli 3x3 (wartości od 0 do 255).
+    Dzięki temu sieć decyzyjna uczy się bezpośrednio na obrazie terenu spod kamery łazika.
+    """
+    if terrain_type == 0:   # Piasek (Sand)
+        return [220, 220, 220, 210, 210, 210, 220, 220, 220] # Jasny jednolity piasek
+    elif terrain_type == 1: # Skała (Rock)
+        return [80, 180, 80, 180, 80, 180, 80, 180, 80]     # Kontrastowa tekstura skały
+    else:                   # Krater (Crater)
+        return [50, 50, 50, 50, 10, 50, 50, 50, 50]         # Ciemny środek krateru
+
+# =====================================================================
 # DEFINICJA ARCHITEKTURY SIECI NEURONOWEJ (PyTorch MLP)
 # =====================================================================
 class MissionControlNN(nn.Module):
-    def __init__(self, input_dim=8, output_dim=2):
+    def __init__(self, input_dim=16, output_dim=2):
         super(MissionControlNN, self).__init__()
         self.net = nn.Sequential(
             nn.Linear(input_dim, 32),
@@ -81,10 +96,10 @@ def run_diagnostic_report(model, scaler, class_mapping, reverse_mapping, val_met
     full_report.append("[2. SYMULACJA SCENARIUSZY TESTOWYCH - ANALIZA BEZPIECZEŃSTWA]:\n")
 
     scenarios = [
-        {"desc": "Pełna bateria, blisko minerał, daleka baza", "features": [90.0, 12.0, 1.0, 1.0, 0.0, 3.0, 20.0, 2.0]},
-        {"desc": "Słaba bateria (30%), stacja bardzo daleko (18 pól) -> Krytyczny powrót", "features": [30.0, 12.0, 1.0, 1.0, 0.0, 5.0, 18.0, 1.0]},
-        {"desc": "Średnia bateria (40%), stacja blisko (5 pól) -> Bezpieczna regeneracja", "features": [40.0, 8.0, 0.5, 0.8, 1.0, 2.0, 5.0, 4.0]},
-        {"desc": "Bateria 80%, pełny ekwipunek (8/8) -> Nakaz powrotu do bazy i sprzedaży", "features": [80.0, 14.0, 0.9, 1.0, 0.0, 4.0, 10.0, 8.0]}
+        {"desc": "Pełna bateria, blisko minerał, daleka baza", "features": [90.0, 12.0, 1.0, 1.0, 3.0, 20.0, 2.0] + terrain_to_pixels(0)},
+        {"desc": "Słaba bateria (30%), stacja bardzo daleko (18 pól) -> Krytyczny powrót", "features": [30.0, 12.0, 1.0, 1.0, 5.0, 18.0, 1.0] + terrain_to_pixels(0)},
+        {"desc": "Średnia bateria (40%), stacja blisko (5 pól) -> Bezpieczna regeneracja", "features": [40.0, 8.0, 0.5, 0.8, 2.0, 5.0, 4.0] + terrain_to_pixels(1)},
+        {"desc": "Bateria 80%, pełny ekwipunek (8/8) -> Nakaz powrotu do bazy i sprzedaży", "features": [80.0, 14.0, 0.9, 1.0, 4.0, 10.0, 8.0] + terrain_to_pixels(0)}
     ]
     
     model.eval()
@@ -101,12 +116,12 @@ def run_diagnostic_report(model, scaler, class_mapping, reverse_mapping, val_met
             decision = reverse_mapping[pred_idx]
             
         full_report.append(f"Scenariusz {i}: {sc['desc']}")
-        full_report.append(f"  Wejście: Bat={sc['features'][0]}%, DystStacja={sc['features'][6]}, Ekwipunek={sc['features'][7]}/8")
+        full_report.append(f"  Wejście: Bat={sc['features'][0]}%, DystStacja={sc['features'][5]}, Ekwipunek={sc['features'][6]}/8")
         full_report.append(f"  Decyzja Sieci: {decision}")
         full_report.append("-" * 50)
         
         terminal_summary.append(
-            f" Scenariusz {i} (Bat: {sc['features'][0]}%, Ekwipunek: {sc['features'][7]}/8) -> Decyzja: \033[92m{decision}\033[0m"
+            f" Scenariusz {i} (Bat: {sc['features'][0]}%, Ekwipunek: {sc['features'][6]}/8) -> Decyzja: \033[92m{decision}\033[0m"
         )
         
     full_report.append("\n[KONIEC RAPORTU]")
@@ -132,11 +147,21 @@ def run_diagnostic_report(model, scaler, class_mapping, reverse_mapping, val_met
 print("[SYSTEM] Inicjalizacja rdzenia decyzyjnego opartego o sieć neuronową...")
 
 raw_dataset = generate_balanced_dataset(1000)
+
+pixel_cols = [f"p{i}" for i in range(1, 10)]
+pixel_data = []
+for idx, row in raw_dataset.iterrows():
+    t_type = int(row["terrain_type"])
+    pixel_data.append(terrain_to_pixels(t_type))
+
+df_pixels = pd.DataFrame(pixel_data, columns=pixel_cols, index=raw_dataset.index)
+raw_dataset = pd.concat([raw_dataset, df_pixels], axis=1)
+
 features = [
     "battery_level", "time_of_day", "solar_efficiency", 
-    "weather_multiplier", "terrain_type", "dist_to_mineral", 
+    "weather_multiplier", "dist_to_mineral", 
     "dist_to_station", "inventory_size"
-]
+] + pixel_cols
 
 X_raw = raw_dataset[features].values
 class_mapping = {"GO_TO_CHARGE": 0, "CONTINUE_MINING": 1}
@@ -153,7 +178,7 @@ y_train_tensor = torch.tensor(y_train, dtype=torch.long)
 X_val_tensor = torch.tensor(X_val, dtype=torch.float32)
 y_val_tensor = torch.tensor(y_val, dtype=torch.long)
 
-trained_nn = MissionControlNN(input_dim=8, output_dim=2)
+trained_nn = MissionControlNN(input_dim=16, output_dim=2)
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(trained_nn.parameters(), lr=0.01)
 
@@ -224,39 +249,125 @@ def print_pretty_console(environment: Environment, current_agent: Agent):
     draw_line(f"ROVER STATUS : {current_agent.status}")
     draw_line(f"PAYLOAD      : {len(current_agent.inventory)}/8 SAMPLES")
     draw_line(f"BUDGET       : {YELLOW}${current_agent.money:>6.1f}{RESET}")
+    
+    nn_conf = getattr(current_agent, "nn_confidence", {"MINING": 0.0, "CHARGE": 0.0})
+    mining_p = nn_conf.get("MINING", 0.0)
+    charge_p = nn_conf.get("CHARGE", 0.0)
+    draw_line(f"NN THOUGHT   : MINING {CYAN}{mining_p:>5.1f}%{RESET} | CHARGE {CYAN}{charge_p:>5.1f}%{RESET}")
+    
     draw_line(f"MINERALS MAP : {active_minerals_count:>2d} ACTIVE")
     print("╠" + "═" * (UI_WIDTH + 2) + "╣")
 
-    # ---- MAP RENDERER Z NAPRAWIONĄ SZEROKOŚCIĄ ZNAKÓW ----
     for y_idx in range(environment.height):
         row = ""
         for x_idx in range(environment.width):
             if current_agent.x == x_idx and current_agent.y == y_idx:
-                row += "🤖 "  # Dodana spacja
+                row += "🤖 " 
             else:
                 obj = next((o for o in environment.objects if o.x == x_idx and o.y == y_idx and o.is_active), None)
                 if obj:
                     if obj.type == "ChargingStation":
-                        row += "⚡ "  # Dodana spacja
+                        row += "⚡ " 
                     elif obj.type == "ScienceBase":
-                        row += "🚀 "  # Dodana spacja
+                        row += "🚀 " 
                     elif obj.type == "Titanium":
-                        row += "🔘 "  # Dodana spacja
+                        row += "🔘 " 
                     elif obj.type == "Water Ice":
-                        row += "💎 "  # Dodana spacja
+                        row += "💎 " 
                     elif obj.type == "Hematite":
-                        row += "🔴 "  # Dodana spacja
+                        row += "🔴 " 
                     else:
-                        row += "💎 "  # Dodana spacja
+                        row += "💎 " 
                 else:
                     t = environment.get_terrain_type(x_idx, y_idx)
                     if t == 0: 
-                        row += "  "   # 2 spacje dla pustego pola
+                        row += "  "   
                     elif t == 1: 
-                        row += "🪨 "  # Skała + spacja
+                        row += "🪨 "  
                     else: 
-                        row += "⚫ "  # Zmieniono krater na bezpieczne czarne kółko + spacja
+                        row += "⚫ "  
         print(f"║ {row} ║")
+
+    print("╠" + "═" * (UI_WIDTH + 2) + "╣")
+    
+    # =====================================================================
+    # 📷 OBSZAR WIZUALIZACJI: WIDOK Z KAMERY POKŁADOWEJ
+    # =====================================================================
+    current_terrain = environment.get_terrain_type(current_agent.x, current_agent.y)
+    current_obj = next((o for o in environment.objects if o.x == current_agent.x and o.y == current_agent.y and o.is_active), None)
+    
+    if current_obj:
+        if current_obj.type == "ChargingStation":
+            draw_line(" [ OBRAZ Z KAMERY: KUPUŁA ENERGETYCZNA ]")
+            draw_line("        .-----------.  ")
+            draw_line("       /  [ ⚡ ]     \\ ")
+            draw_line("      /   REGENERACJA\\")
+            draw_line("     |_______________| ")
+        elif current_obj.type == "ScienceBase":
+            draw_line(" [ OBRAZ Z KAMERY: PORT ROZŁADUNKOWY ]")
+            draw_line("         .---------.   ")
+            draw_line("        /   [ 🚀 ]  \\  ")
+            draw_line("       / DEPOZYT RUDY\\ ")
+            draw_line("      |_______________|")
+        else:
+            draw_line(f" [ OBRAZ: METEORYT {current_obj.type.upper()} ]")
+            draw_line("           _.-*-._     ")
+            draw_line(f"         .-  {current_obj.type[:3].upper()}  -.   ")
+            draw_line("        /   ZŁOŻE      \\")
+            draw_line("       |_______________|")
+    else:
+        if current_terrain == 0:
+            draw_line(" [ OBRAZ Z KAMERY: WYDMY PIASKOWE ]")
+            draw_line("      . . . . . . . .  ")
+            draw_line("    . . . . . . . . . .")
+            draw_line("  . . . . . . . . . . .")
+            draw_line(" . . . . . . . . . . . ")
+        elif current_terrain == 1:
+            draw_line(" [ OBRAZ Z KAMERY: PASMO SKALISTE ]")
+            draw_line("         _  _/\\_  _    ")
+            draw_line("       _/ \\/    \\/ \\_  ")
+            draw_line("      /   OSTRE SKAŁY  \\")
+            draw_line("     /_________________\\")
+        else:
+            draw_line(" [ OBRAZ Z KAMERY: GŁĘBOKI KRATER ]")
+            draw_line("        \\             /")
+            draw_line("         \\   ABYSS   / ")
+            draw_line("          \\_________/  ")
+            draw_line("          (NIEPRZEJEZD)")
+            
+    print("╠" + "═" * (UI_WIDTH + 2) + "╣")
+    
+    # =====================================================================
+    # 🧠 TŁO ANALIZY DANYCH W SIECI (WIZUALIZACJA MATRYCY 3x3)
+    # =====================================================================
+    draw_line(" [ SYSTEM ANALIZY DANYCH W TLE (ML) ]")
+    
+    solar_eff = current_agent._calculate_solar_efficiency(environment.time_of_day)
+    weather_mult = current_agent.WEATHER_MULTIPLIERS.get(environment.weather, 1.0)
+    
+    # 1. Pobieramy wartości pikseli dla aktualnego terenu
+    pixels = terrain_to_pixels(current_terrain)
+    p_row1 = f"[{pixels[0]:>3}, {pixels[1]:>3}, {pixels[2]:>3}]"
+    p_row2 = f"[{pixels[3]:>3}, {pixels[4]:>3}, {pixels[5]:>3}]"
+    p_row3 = f"[{pixels[6]:>3}, {pixels[7]:>3}, {pixels[8]:>3}]"
+    
+    draw_line(f" TELEMETRIA: Bat:{b_val:.0f}%|Czas:{environment.time_of_day:.1f}h|Pogoda:{weather_mult:.1f}")
+    
+    # ---- FIZYCZNA WIZUALIZACJA TRZECH WIERSZY PIKSELI ----
+    draw_line(" MATRYCA PIKSELI KAMERY PODWOZIA (3x3):")
+    draw_line(f"   {p_row1}")
+    draw_line(f"   {p_row2}")
+    draw_line(f"   {p_row3}")
+    
+    draw_line(f" NEURONY: Wejście: 16 | L1: 32 (ReLU) | L2: 16")
+    
+    # Bezpieczne pobranie ostatecznej decyzji sieci
+    mining_p = current_agent.nn_confidence['MINING']
+    charge_p = current_agent.nn_confidence['CHARGE']
+    selected_act = "MINING" if mining_p > charge_p else "CHARGE"
+    
+    draw_line(f" PROB: MINING {mining_p:.1f}% | CHARGE {charge_p:.1f}%")
+    draw_line(f" DECYZJA SIECI: -> {selected_act} (Aktywny)")
 
     print("╚" + "═" * (UI_WIDTH + 2) + "╝")
     print(f"[ telemetry.link ] step: {environment.step_counter:04d} | data_sync: OK")
