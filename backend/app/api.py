@@ -30,8 +30,8 @@ def terrain_to_pixels(terrain_type):
     
     noisy_pixels = []
     for val in base:
-        noise = random.randint(-15, 15)
-        noisy_val = max(0, min(255, val + noise))
+        noise = random.randint(-15, 15) # Dodanie szumu sensora kamery (Sensor Noise) [1]
+        noisy_val = max(0, min(255, val + noise)) # Ograniczenie wartości do zakresu [0, 255] [1]
         noisy_pixels.append(noisy_val)
         
     return noisy_pixels
@@ -43,11 +43,11 @@ class MissionControlNN(nn.Module):
     def __init__(self, input_dim=16, output_dim=2):
         super(MissionControlNN, self).__init__()
         self.net = nn.Sequential(
-            nn.Linear(input_dim, 32),
+            nn.Linear(input_dim, 32), # Słowo kluczowe: Warstwa wejściowa (16 wejść -> 32 neurony) [1]
+            nn.ReLU(),                # Funkcja aktywacji wprowadzająca nieliniowość [1]
+            nn.Linear(32, 16),        # Warstwa ukryta (32 -> 16 neuronów) [1]
             nn.ReLU(),
-            nn.Linear(32, 16),
-            nn.ReLU(),
-            nn.Linear(16, output_dim)
+            nn.Linear(16, output_dim) # Warstwa wyjściowa (16 -> 2 neurony decyzyjne) [1]
         )
 
     def forward(self, x):
@@ -68,7 +68,7 @@ def generate_balanced_dataset(required_per_class: int = 1000):
             battery = row["battery_level"]
             inventory_size = row["inventory_size"]
             
-            # 🚨 NAPRAWA BŁĘDU ŚMIERCI (ZWIĘKSZONY MARGINES BEZPIECZEŃSTWA)
+            # 🚨 NAPRAWA BŁĘDU ŚMIERCI 
             # Dystans * 2.5 (bo skały kosztują 2.0, a obrót 1.0)
             # Żelazna rezerwa 30.0% na wypadek nocy (brak słońca po 20:00)
             safety_margin = 30.0  

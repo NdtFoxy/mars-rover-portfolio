@@ -215,13 +215,14 @@ class Agent:
             len(self.inventory)
         ] + pixels])
         
-        scaled_features = scaler.transform(raw_features)
-        input_tensor = torch.tensor(scaled_features, dtype=torch.float32)
+
+        scaled_features = scaler.transform(raw_features) # Skalowanie cech (StandardScaler) [1]
+        input_tensor = torch.tensor(scaled_features, dtype=torch.float32) # Konwersja na tensor PyTorch [1]
         
-        with torch.no_grad():
-            outputs = trained_nn(input_tensor)
+        with torch.no_grad():# Wyłączenie obliczania gradientów (Oszczędność zasobów) [1]
+            outputs = trained_nn(input_tensor)# Przejście w przód przez sieć (Forward Pass) [1]
             
-            probabilities = torch.nn.functional.softmax(outputs, dim=1).numpy()[0]
+            probabilities = torch.nn.functional.softmax(outputs, dim=1).numpy()[0]# Softmax dla procentów [1]
             self.nn_confidence["CHARGE"] = float(probabilities[0] * 100)
             self.nn_confidence["MINING"] = float(probabilities[1] * 100)
             
@@ -229,6 +230,7 @@ class Agent:
             
         decision = reverse_mapping.get(class_idx, "CONTINUE_MINING")
         return decision
+
 
     def _calculate_solar_efficiency(self, time_of_day: int) -> float:
         if 6 <= time_of_day <= 20:

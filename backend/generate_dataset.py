@@ -49,7 +49,7 @@ def collect_data():
                 break
             
             # Pobieramy decyzję eksperta
-            action = agent.decide_action(env, rx, ry, tx, ty) # nazwa metody może się różnić
+            action = agent.decide_action(env, rx, ry, tx, ty)
             if action not in action_mapping:
                 break
                 
