@@ -92,7 +92,7 @@ def generate_balanced_dataset(required_per_class: int = 1000):
     return df_balanced
 
 # =====================================================================
-# RAPORT DIAGNOSTYCZNY DLA PROFESORA (PLIK + TERMINAL)
+# RAPORT DIAGNOSTYCZNY MODELU SIECI NEURONOWEJ (Zawiera metryki i analizę scenariuszy testowych)
 # =====================================================================
 def run_diagnostic_report(model, scaler, class_mapping, reverse_mapping, val_metrics_text):
     full_report = []
