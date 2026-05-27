@@ -240,7 +240,43 @@ class Agent:
             self.battery = 0.0
             self.status = "DEAD"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self, env=None) -> Dict[str, Any]:
+        # Wartości domyślne (np. na wypadek braku przekazania środowiska)
+        pixels = [220, 220, 220, 210, 210, 210, 220, 220, 220] # Domyślny piasek
+        feed_type = "SAND"
+
+        if env is not None:
+            # Odczytujemy typ podłoża pod łazikiem i generujemy piksele z szumem
+            terrain = env.get_terrain_type(self.x, self.y)
+            pixels = self.terrain_to_pixels(terrain)
+            
+            # Sprawdzamy czy na polu stoi aktywny obiekt
+            obj = next((o for o in env.objects if o.x == self.x and o.y == self.y and o.is_active), None)
+            if obj is not None:
+                if obj.type == "ChargingStation":
+                    feed_type = "CHARGER"
+                elif obj.type == "ScienceBase":
+                    feed_type = "BASE"
+                elif obj.type == "Titanium":
+                    feed_type = "TITANIUM"
+                elif obj.type == "Water Ice":
+                    feed_type = "WATER_ICE"
+                elif obj.type == "Hematite":
+                    feed_type = "HEMATITE"
+            else:
+                if terrain == 0:
+                    feed_type = "SAND"
+                elif terrain == 1:
+                    feed_type = "ROCK"
+                else:
+                    feed_type = "CRATER"
+
+        # Pobieranie aktualnych procentów pewności sieci
+        nn_conf = getattr(self, "nn_confidence", {"MINING": 0.0, "CHARGE": 0.0})
+        mining_p = nn_conf.get("MINING", 0.0)
+        charge_p = nn_conf.get("CHARGE", 0.0)
+        nn_thought_str = f"MINING {mining_p:.1f}% | CHARGE {charge_p:.1f}%"
+
         return {
             "x": self.x,
             "y": self.y,
@@ -248,7 +284,9 @@ class Agent:
             "battery": round(self.battery, 2),
             "inventory": self.inventory,
             "money": round(self.money, 2),
-             "nn_thought": f"MINING {getattr(self, 'nn_confidence', {}).get('MINING', 0.0):.1f}% | CHARGE {getattr(self, 'nn_confidence', {}).get('CHARGE', 0.0):.1f}%",
+            "nn_thought": nn_thought_str,
+            "camera_matrix": pixels,             # Przekazanie 3x3 matrycy pikseli do JSON [2]
+            "camera_feed_type": feed_type,       # Przekazanie typu widoku (np. BASE, ROCK) do JSON [2]
             "status": self.status,
             "current_plan": self.current_plan
         }

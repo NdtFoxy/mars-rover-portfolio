@@ -381,7 +381,7 @@ def print_pretty_console(environment: Environment, current_agent: Agent):
 async def get_current_state():
     env_dict = env.to_dict()
     return GameState(
-        agent=agent.to_dict(),
+        agent=agent.to_dict(env),
         environment={
             "step_counter": env_dict["step_counter"],
             "time_of_day": env_dict["time_of_day"],

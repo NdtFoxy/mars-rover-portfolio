@@ -93,6 +93,12 @@ def generate_dataset(num_samples: int = 500) -> pd.DataFrame:
 def run_decision_tree_experiment():
     print("Trwa generowanie zbioru uczącego (500 przykładów)...")
     df = generate_dataset(500)
+
+    print("\n" + "="*80)
+    print("WYGENEROWANA TABELA DANYCH (DataFrame) - PIERWSZE 10 WIERSZY:")
+    print("="*80)
+    print(df.head(500)) # Wypisze pierwsze 10 wierszy
+    print("="*80)
     
     # Rozdzielenie na zbiór atrybutów opisujących (X) i decyzję (y)
     feature_names = [
@@ -127,8 +133,10 @@ def run_decision_tree_experiment():
         rounded=True, 
         fontsize=10
     )
-    plt.title("Drzewo decyzyjne - ID3", fontsize=15)
+    plt.title("Drzewo decyzyjne CART / Entropia)", fontsize=15)
     plt.tight_layout()
+    plt.savefig("decision_tree.png", dpi=300)
+    print("Grafika została zapisana jako 'decision_tree.png' w folderze projektu!")
     plt.show()
 
 if __name__ == "__main__":

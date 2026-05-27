@@ -11,6 +11,8 @@ class AgentState(BaseModel):
     current_plan: List[str]
     money: float = 0.0
     nn_thought: str = "MINING 0.0% | CHARGE 0.0%"
+    camera_matrix: List[int] = [0, 0, 0, 0, 0, 0, 0, 0, 0] # Matryca pikseli 3x3 w formie płaskiej [2]
+    camera_feed_type: str = "SAND"
     
 class EnvironmentState(BaseModel):
     step_counter: int
