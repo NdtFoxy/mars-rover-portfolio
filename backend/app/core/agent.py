@@ -1,10 +1,20 @@
+import os
 import random
 import math
 import torch
 import numpy as np
 from typing import List, Dict, Any
+from PIL import Image
+import torchvision.transforms as transforms
+
 from .environment import Environment, ChargingStation, Mineral
 from .search import astar_find_path, TERRAIN_COSTS, TURN_COST
+
+# Transformacja obrazu kamery dla wnioskowania (musi być identyczna jak w api.py)
+agent_img_transform = transforms.Compose([
+    transforms.Resize((32, 32)),
+    transforms.ToTensor()
+])
 
 class Agent:
     
@@ -178,33 +188,81 @@ class Agent:
             return 100.0
         return min(abs(self.x - s.x) + abs(self.y - s.y) for s in active_stations)
 
-    # ---- MAPOWANIE TERENU NA WIZUALNY MATRYCĘ 3x3 Z SZUMEM LOSOWYM ----
+    # ---- SZTUCZNA MATRIX PIKSELI DLA ZGODNOŚCI Z JSON UE5 ----
     def terrain_to_pixels(self, terrain_type: int) -> list:
-        """
-        Konwertuje kod terenu na płaską macierz pikseli 3x3 (9 pikseli) 
-        z dodanym szumem losowym w zakresie ±15. Zapobiega to przeuczeniu (overfitting).
-        """
-        if terrain_type == 0:   # Piasek (Sand)
+        if terrain_type == 0:   # Piasek
             base = [220, 220, 220, 210, 210, 210, 220, 220, 220]
-        elif terrain_type == 1: # Skała (Rock)
+        elif terrain_type == 1: # Skała
             base = [80, 180, 80, 180, 80, 180, 80, 180, 80]
-        else:                   # Krater (Crater)
+        else:                   # Krater
             base = [50, 50, 50, 50, 10, 50, 50, 50, 50]
         
-        # Generowanie losowego szumu sensora kamery
         noisy_pixels = []
         for val in base:
             noise = random.randint(-15, 15)
-            # Normalizacja do dopuszczalnych granic pikseli [0, 255]
             noisy_val = max(0, min(255, val + noise))
             noisy_pixels.append(noisy_val)
             
         return noisy_pixels
 
-    def decide_next_macro_action(self, env: Environment, trained_nn, scaler, reverse_mapping: dict) -> str:
-        terrain = env.get_terrain_type(self.x, self.y)
-        pixels = self.terrain_to_pixels(terrain)
+    # =====================================================================
+    # AKTYWNY POBÓR OBRAZU KAMERY Z PLIKÓW UE5 DLA SIECI CNN
+    # =====================================================================
+    def get_camera_image_from_ue5(self, env: Environment) -> torch.Tensor:
+        """
+        Pobiera losowy rzeczywisty zrzut ekranu z folderu ue5_photos,
+        symulując widok z kamery w czasie rzeczywistym na podstawie pozycji łazika.
+        """
+        category = "sand"
+        obj = next((o for o in env.objects if o.x == self.x and o.y == self.y and o.is_active), None)
+        
+        if obj is not None:
+            if obj.type == "ChargingStation":
+                category = "station"
+            elif obj.type == "ScienceBase":
+                category = "base"
+        else:
+            terrain = env.get_terrain_type(self.x, self.y)
+            if terrain == 0:
+                category = "sand"
+            elif terrain == 1:
+                category = "rock"
+            elif terrain == 2:
+                category = "crater"
 
+        folder_path = os.path.join("ue5_photos", category)
+        fallback = torch.zeros((1, 3, 32, 32))
+
+        if not os.path.exists(folder_path) or not os.listdir(folder_path):
+            return fallback
+
+        files = [f for f in os.listdir(folder_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+        if not files:
+            return fallback
+
+        random_file = random.choice(files)
+        img_path = os.path.join(folder_path, random_file)
+
+        try:
+            img = Image.open(img_path).convert('RGB')
+            # Zwraca gotowy tensor [1, 3, 32, 32] dla sieci CNN
+            return agent_img_transform(img).unsqueeze(0) 
+        except Exception as e:
+            print(f"[OSTRZEZENIE] Blad wczytywania kamery w locie: {e}")
+            return fallback
+
+    # =====================================================================
+    # DECYZJA SIECI NEURONOWEJ (MULTIMODAL CNN)
+    # =====================================================================
+    def decide_next_macro_action(self, env: Environment, trained_nn, scaler, reverse_mapping: dict) -> str:
+        """
+        Podejmuje decyzję makro (GO_TO_CHARGE lub CONTINUE_MINING) przy użyciu
+        wielowejściowej sieci neuronowej CNN + MLP.
+        """
+        # 1. Pobieramy wizualny kadr z kamery UE5
+        img_tensor = self.get_camera_image_from_ue5(env)
+
+        # 2. Tworzymy wektor parametrów fizycznych łazika (7 cech)
         raw_features = np.array([[
             self.battery,
             env.time_of_day,
@@ -213,16 +271,17 @@ class Agent:
             self._get_dist_to_mineral(env),
             self._get_dist_to_station(env),
             len(self.inventory)
-        ] + pixels])
-        
+        ]])
 
-        scaled_features = scaler.transform(raw_features) # Skalowanie cech (StandardScaler) [1]
-        input_tensor = torch.tensor(scaled_features, dtype=torch.float32) # Konwersja na tensor PyTorch [1]
+        # 3. Skalujemy dane fizyczne i konwertujemy na tensor
+        scaled_features = scaler.transform(raw_features)
+        tab_tensor = torch.tensor(scaled_features, dtype=torch.float32)
         
-        with torch.no_grad():# Wyłączenie obliczania gradientów (Oszczędność zasobów) [1]
-            outputs = trained_nn(input_tensor)# Przejście w przód przez sieć (Forward Pass) [1]
+        with torch.no_grad():
+            # Przepływ w przód przez sieć wielowejściową CNN + MLP
+            outputs = trained_nn(img_tensor, tab_tensor)
             
-            probabilities = torch.nn.functional.softmax(outputs, dim=1).numpy()[0]# Softmax dla procentów [1]
+            probabilities = torch.nn.functional.softmax(outputs, dim=1).numpy()[0]
             self.nn_confidence["CHARGE"] = float(probabilities[0] * 100)
             self.nn_confidence["MINING"] = float(probabilities[1] * 100)
             
@@ -230,7 +289,6 @@ class Agent:
             
         decision = reverse_mapping.get(class_idx, "CONTINUE_MINING")
         return decision
-
 
     def _calculate_solar_efficiency(self, time_of_day: int) -> float:
         if 6 <= time_of_day <= 20:
@@ -243,16 +301,13 @@ class Agent:
             self.status = "DEAD"
 
     def to_dict(self, env=None) -> Dict[str, Any]:
-        # Wartości domyślne (np. na wypadek braku przekazania środowiska)
-        pixels = [220, 220, 220, 210, 210, 210, 220, 220, 220] # Domyślny piasek
+        pixels = [220, 220, 220, 210, 210, 210, 220, 220, 220]
         feed_type = "SAND"
 
         if env is not None:
-            # Odczytujemy typ podłoża pod łazikiem i generujemy piksele z szumem
             terrain = env.get_terrain_type(self.x, self.y)
             pixels = self.terrain_to_pixels(terrain)
             
-            # Sprawdzamy czy na polu stoi aktywny obiekt
             obj = next((o for o in env.objects if o.x == self.x and o.y == self.y and o.is_active), None)
             if obj is not None:
                 if obj.type == "ChargingStation":
@@ -273,7 +328,6 @@ class Agent:
                 else:
                     feed_type = "CRATER"
 
-        # Pobieranie aktualnych procentów pewności sieci
         nn_conf = getattr(self, "nn_confidence", {"MINING": 0.0, "CHARGE": 0.0})
         mining_p = nn_conf.get("MINING", 0.0)
         charge_p = nn_conf.get("CHARGE", 0.0)
@@ -287,8 +341,8 @@ class Agent:
             "inventory": self.inventory,
             "money": round(self.money, 2),
             "nn_thought": nn_thought_str,
-            "camera_matrix": pixels,             # Przekazanie 3x3 matrycy pikseli do JSON [2]
-            "camera_feed_type": feed_type,       # Przekazanie typu widoku (np. BASE, ROCK) do JSON [2]
+            "camera_matrix": pixels,             # Przekazanie do JSON dla zachowania wstecznej kompatybilności z interfejsem [2]
+            "camera_feed_type": feed_type,       # Typ widoku podwozia dla logiki w UE5 [2]
             "status": self.status,
             "current_plan": self.current_plan
         }

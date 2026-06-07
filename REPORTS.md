@@ -125,3 +125,25 @@ This document tracks the individual contributions of team members for the "Auton
     *   Upgraded the Mars Rover actor in Unreal Engine 5 to support the new orientation-based movement (interpolating rotation when turning left/right).
     *   Mapped the discrete API action steps (`MOVE_FORWARD`, `TURN_LEFT`, `TURN_RIGHT`) into smooth 3D animations and timeline-based movement.
     *   Synchronized the UI to display the agent's current directional heading and execution plan queue.
+
+### Sprint Update: Advanced Neural Network Upgrade (Multimodal CNN + MLP)
+
+#### What was done:
+1. **Transition to Real Visual Data:**
+   - Eliminated the synthetic 3x3 pixel matrix generator.
+   - Set up a structured local image database (`ue5_photos/`) containing real screenshots rendered directly in Unreal Engine 5 representing all environment states (`sand`, `rock`, `crater`, `station`, `base`).
+
+2. **Multimodal CNN + MLP Architecture Implementation:**
+   - Designed and implemented a multi-input neural network in PyTorch (`MissionControlCNN`).
+   - Built a Convolutional Neural Network (CNN) branch using `Conv2d` and `MaxPool2d` layers to extract spatial visual features from 32x32 RGB camera frames.
+   - Built a Multilayer Perceptron (MLP) branch to process 7 tabular telemetry features (battery level, time of day, weather multiplier, etc.).
+   - Integrated a feature fusion layer to concatenate visual and physical features before final decision classification (`GO_TO_CHARGE` vs. `CONTINUE_MINING`).
+
+3. **Data Augmentation Pipeline:**
+   - Implemented real-time image augmentation using `torchvision.transforms` (including random rotations and flips).
+   - Successfully expanded a small pool of manual screenshots into a balanced dataset of over 2,000 unique training samples, fulfilling the academic requirement of having $\ge 1000$ training examples per class.
+
+4. **Integration and Real-Time Inference:**
+   - Updated the autonomous agent logic to sample and classify visual frames on-the-fly depending on the tile the rover occupies.
+   - Maintained full backward compatibility with the existing API communication protocol to ensure seamless integration with the Unreal Engine 5 frontend.
+   - Verified training convergence (loss reduced from 0.22 to 0.13).

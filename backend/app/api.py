@@ -9,6 +9,8 @@ from fastapi import APIRouter
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
+from PIL import Image
+import torchvision.transforms as transforms
 
 from .models import GameState
 from .core.environment import Environment
@@ -18,43 +20,100 @@ from .core.decision_tree_agent import generate_dataset
 router = APIRouter()
 
 # =====================================================================
-# KONWERSJA TERENU NA OBRAZ 3x3 Z SZUMEM LOSOWYM (Sensor Noise)
+# TRANSFORMCJE OBRAZÓW (W TYM AUGMENTACJA DLA TRENINGU)
 # =====================================================================
+train_transforms = transforms.Compose([
+    transforms.Resize((32, 32)),
+    transforms.RandomRotation(15),
+    transforms.RandomHorizontalFlip(p=0.5),
+    transforms.ToTensor()
+])
+
+val_transforms = transforms.Compose([
+    transforms.Resize((32, 32)),
+    transforms.ToTensor()
+])
+
+# =====================================================================
+# FUNKCJA POMOCNICZA: WCZYTYWANIE OBRAZU UE5 Z DYSKU
+# =====================================================================
+def get_ue5_image(category: str, is_training: bool = True) -> torch.Tensor:
+    folder_path = os.path.join("ue5_photos", category)
+    fallback_tensor = torch.zeros((3, 32, 32))
+
+    if not os.path.exists(folder_path) or not os.listdir(folder_path):
+        return fallback_tensor
+
+    files = [f for f in os.listdir(folder_path) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
+    if not files:
+        return fallback_tensor
+
+    random_file = random.choice(files)
+    img_path = os.path.join(folder_path, random_file)
+
+    try:
+        img = Image.open(img_path).convert('RGB')
+        if is_training:
+            return train_transforms(img)
+        else:
+            return val_transforms(img)
+    except Exception as e:
+        print(f"[OSTRZEZENIE] Blad wczytywania obrazu {img_path}: {e}")
+        return fallback_tensor
+
+# Pozostawione dla zgodności z wyświetlaniem retro-konsoli
 def terrain_to_pixels(terrain_type):
-    if terrain_type == 0:   # Piasek (Sand)
+    if terrain_type == 0:
         base = [220, 220, 220, 210, 210, 210, 220, 220, 220]
-    elif terrain_type == 1: # Skała (Rock)
+    elif terrain_type == 1:
         base = [80, 180, 80, 180, 80, 180, 80, 180, 80]
-    else:                   # Krater (Crater)
+    else:
         base = [50, 50, 50, 50, 10, 50, 50, 50, 50]
     
     noisy_pixels = []
     for val in base:
-        noise = random.randint(-15, 15) # Dodanie szumu sensora kamery (Sensor Noise) [1]
-        noisy_val = max(0, min(255, val + noise)) # Ograniczenie wartości do zakresu [0, 255] [1]
+        noise = random.randint(-15, 15)
+        noisy_val = max(0, min(255, val + noise))
         noisy_pixels.append(noisy_val)
         
     return noisy_pixels
 
 # =====================================================================
-# DEFINICJA ARCHITEKTURY SIECI NEURONOWEJ (PyTorch MLP)
+# WIELOWEJŚCIOWA ARCHITEKTURA SIECI NEURONOWEJ (MULTIMODAL CNN)
 # =====================================================================
-class MissionControlNN(nn.Module):
-    def __init__(self, input_dim=16, output_dim=2):
-        super(MissionControlNN, self).__init__()
-        self.net = nn.Sequential(
-            nn.Linear(input_dim, 32), # Słowo kluczowe: Warstwa wejściowa (16 wejść -> 32 neurony) [1]
-            nn.ReLU(),                # Funkcja aktywacji wprowadzająca nieliniowość [1]
-            nn.Linear(32, 16),        # Warstwa ukryta (32 -> 16 neuronów) [1]
+class MissionControlCNN(nn.Module):
+    def __init__(self, tabular_dim=7, output_dim=2):
+        super(MissionControlCNN, self).__init__()
+        
+        self.cnn = nn.Sequential(
+            nn.Conv2d(in_channels=3, out_channels=16, kernel_size=3, padding=1),
             nn.ReLU(),
-            nn.Linear(16, output_dim) # Warstwa wyjściowa (16 -> 2 neurony decyzyjne) [1]
+            nn.MaxPool2d(kernel_size=2),
+            nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2),
+            nn.Flatten()
+        )
+        
+        self.mlp = nn.Sequential(
+            nn.Linear(tabular_dim, 16),
+            nn.ReLU()
+        )
+        
+        self.classifier = nn.Sequential(
+            nn.Linear(2048 + 16, 32),
+            nn.ReLU(),
+            nn.Linear(32, output_dim)
         )
 
-    def forward(self, x):
-        return self.net(x)
+    def forward(self, img_x, tab_x):
+        img_features = self.cnn(img_x)
+        tab_features = self.mlp(tab_x)
+        combined = torch.cat((img_features, tab_features), dim=1)
+        return self.classifier(combined)
 
 # =====================================================================
-# BEZPIECZNA GENERACJA I BALANSOWANIE DANYCH (Wymóg: >= 1000 na klasę)
+# GENEROWANIE I BALANSOWANIE DANYCH TRENINGOWYCH
 # =====================================================================
 def generate_balanced_dataset(required_per_class: int = 1000):
     print(f"[SYSTEM] Generowanie zbalansowanego zbioru danych (min. {required_per_class} próbek na klasę)...")
@@ -68,9 +127,6 @@ def generate_balanced_dataset(required_per_class: int = 1000):
             battery = row["battery_level"]
             inventory_size = row["inventory_size"]
             
-            # 🚨 NAPRAWA BŁĘDU ŚMIERCI 
-            # Dystans * 2.5 (bo skały kosztują 2.0, a obrót 1.0)
-            # Żelazna rezerwa 30.0% na wypadek nocy (brak słońca po 20:00)
             safety_margin = 30.0  
             energy_needed_to_return = (dist * 2.5) + safety_margin
             
@@ -92,7 +148,7 @@ def generate_balanced_dataset(required_per_class: int = 1000):
     return df_balanced
 
 # =====================================================================
-# RAPORT DIAGNOSTYCZNY MODELU SIECI NEURONOWEJ (Zawiera metryki i analizę scenariuszy testowych)
+# GENEROWANIE RAPORTU DIAGNOSTYCZNEGO DLA PROCESU WALIDACJI (CNN)
 # =====================================================================
 def run_diagnostic_report(model, scaler, class_mapping, reverse_mapping, val_metrics_text):
     full_report = []
@@ -105,32 +161,34 @@ def run_diagnostic_report(model, scaler, class_mapping, reverse_mapping, val_met
     full_report.append("[2. SYMULACJA SCENARIUSZY TESTOWYCH - ANALIZA BEZPIECZEŃSTWA]:\n")
 
     scenarios = [
-        {"desc": "Pełna bateria, blisko minerał, daleka baza", "features": [90.0, 12.0, 1.0, 1.0, 3.0, 20.0, 2.0] + terrain_to_pixels(0)},
-        {"desc": "Słaba bateria (30%), stacja bardzo daleko (18 pól) -> Krytyczny powrót", "features": [30.0, 12.0, 1.0, 1.0, 5.0, 18.0, 1.0] + terrain_to_pixels(0)},
-        {"desc": "Średnia bateria (40%), stacja blisko (5 pól) -> Bezpieczna regeneracja", "features": [40.0, 8.0, 0.5, 0.8, 2.0, 5.0, 4.0] + terrain_to_pixels(1)},
-        {"desc": "Bateria 80%, pełny ekwipunek (8/8) -> Nakaz powrotu do bazy i sprzedaży", "features": [80.0, 14.0, 0.9, 1.0, 4.0, 10.0, 8.0] + terrain_to_pixels(0)}
+        {"desc": "Pełna bateria, blisko minerał, daleka baza", "tab": [90.0, 12.0, 1.0, 1.0, 3.0, 20.0, 2.0], "cat": "sand"},
+        {"desc": "Słaba bateria (30%), stacja bardzo daleko (18 pól) -> Krytyczny powrót", "tab": [30.0, 12.0, 1.0, 1.0, 5.0, 18.0, 1.0], "cat": "sand"},
+        {"desc": "Średnia bateria (40%), stacja blisko (5 pól) -> Bezpieczna regeneracja", "tab": [40.0, 8.0, 0.5, 0.8, 2.0, 5.0, 4.0], "cat": "rock"},
+        {"desc": "Bateria 80%, pełny ekwipunek (8/8) -> Nakaz powrotu do bazy i sprzedaży", "tab": [80.0, 14.0, 0.9, 1.0, 4.0, 10.0, 8.0], "cat": "base"}
     ]
     
     model.eval()
     terminal_summary = []
     
     for i, sc in enumerate(scenarios, 1):
-        test_input = np.array([sc["features"]])
+        test_input = np.array([sc["tab"]])
         test_input_scaled = scaler.transform(test_input)
-        test_tensor = torch.tensor(test_input_scaled, dtype=torch.float32)
+        tab_tensor = torch.tensor(test_input_scaled, dtype=torch.float32)
+        
+        img_tensor = get_ue5_image(sc["cat"], is_training=False).unsqueeze(0)
         
         with torch.no_grad():
-            output = model(test_tensor)
+            output = model(img_tensor, tab_tensor)
             pred_idx = torch.argmax(output, dim=1).item()
             decision = reverse_mapping[pred_idx]
             
         full_report.append(f"Scenariusz {i}: {sc['desc']}")
-        full_report.append(f"  Wejście: Bat={sc['features'][0]}%, DystStacja={sc['features'][5]}, Ekwipunek={sc['features'][6]}/8")
+        full_report.append(f"  Wejście: Bat={sc['tab'][0]}%, DystStacja={sc['tab'][5]}, Ekwipunek={sc['tab'][6]}/8, Środowisko: {sc['cat'].upper()}")
         full_report.append(f"  Decyzja Sieci: {decision}")
         full_report.append("-" * 50)
         
         terminal_summary.append(
-            f" Scenariusz {i} (Bat: {sc['features'][0]}%, Ekwipunek: {sc['features'][6]}/8) -> Decyzja: \033[92m{decision}\033[0m"
+            f" Scenariusz {i} (Bat: {sc['tab'][0]}%, Wiz: {sc['cat'].upper()}) -> Decyzja: \033[92m{decision}\033[0m"
         )
         
     full_report.append("\n[KONIEC RAPORTU]")
@@ -151,28 +209,39 @@ def run_diagnostic_report(model, scaler, class_mapping, reverse_mapping, val_met
     print("="*70 + "\n")
 
 # =====================================================================
-# INICJALIZACJA I PROCES UCZENIA SIECI NEURONOWEJ
+# INICJALIZACJA I PROCES UCZENIA MULTIMODALNEJ SIECI CNN + MLP
 # =====================================================================
-print("[SYSTEM] Inicjalizacja rdzenia decyzyjnego opartego o sieć neuronową...")
+print("[SYSTEM] Inicjalizacja rdzenia decyzyjnego opartego o sieci CNN...")
 
 raw_dataset = generate_balanced_dataset(1000)
 
-pixel_cols = [f"p{i}" for i in range(1, 10)]
-pixel_data = []
+print("[SYSTEM] Parowanie i wczytywanie obrazów UE5 dla zbioru uczącego...")
+images_list = []
 for idx, row in raw_dataset.iterrows():
+    dist_station = row["dist_to_station"]
     t_type = int(row["terrain_type"])
-    pixel_data.append(terrain_to_pixels(t_type))
+    
+    if dist_station <= 1 and row["target_decision"] == "GO_TO_CHARGE":
+        category = random.choice(["station", "base"])
+    else:
+        if t_type == 1:
+            category = "rock"
+        elif t_type == 2:
+            category = "crater"
+        else:
+            category = "sand"
+            
+    images_list.append(get_ue5_image(category, is_training=True))
 
-df_pixels = pd.DataFrame(pixel_data, columns=pixel_cols, index=raw_dataset.index)
-raw_dataset = pd.concat([raw_dataset, df_pixels], axis=1)
+X_img_tensor = torch.stack(images_list)
 
-features = [
+tabular_features = [
     "battery_level", "time_of_day", "solar_efficiency", 
     "weather_multiplier", "dist_to_mineral", 
     "dist_to_station", "inventory_size"
-] + pixel_cols
+]
 
-X_raw = raw_dataset[features].values
+X_raw = raw_dataset[tabular_features].values
 class_mapping = {"GO_TO_CHARGE": 0, "CONTINUE_MINING": 1}
 reverse_mapping = {0: "GO_TO_CHARGE", 1: "CONTINUE_MINING"}
 y_raw = raw_dataset["target_decision"].map(class_mapping).values
@@ -180,29 +249,54 @@ y_raw = raw_dataset["target_decision"].map(class_mapping).values
 scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X_raw)
 
-X_train, X_val, y_train, y_val = train_test_split(X_scaled, y_raw, test_size=0.2, random_state=42)
+# Spójny podział danych na zbiór treningowy i walidacyjny
+indices = np.arange(len(raw_dataset))
+train_idx, val_idx = train_test_split(indices, test_size=0.2, random_state=42)
 
-X_train_tensor = torch.tensor(X_train, dtype=torch.float32)
+X_train_img = X_img_tensor[train_idx]
+X_val_img = X_img_tensor[val_idx]
+
+X_train_tab = torch.tensor(X_scaled[train_idx], dtype=torch.float32)
+X_val_tab = torch.tensor(X_scaled[val_idx], dtype=torch.float32)
+
+y_train = y_raw[train_idx]
+y_val = y_raw[val_idx] # <--- NAPRAWIONE (Zdefiniowanie tablicy y_val dla scikit-learn)
+
 y_train_tensor = torch.tensor(y_train, dtype=torch.long)
-X_val_tensor = torch.tensor(X_val, dtype=torch.float32)
 y_val_tensor = torch.tensor(y_val, dtype=torch.long)
 
-trained_nn = MissionControlNN(input_dim=16, output_dim=2)
+# Inicjalizacja sieci wielowejściowej
+trained_nn = MissionControlCNN(tabular_dim=7, output_dim=2)
 criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(trained_nn.parameters(), lr=0.01)
+optimizer = optim.Adam(trained_nn.parameters(), lr=0.001)
 
 trained_nn.train()
-epochs = 80
+epochs = 30
+batch_size = 64
+
+print("[SYSTEM] Trening sieci CNN + MLP w toku...")
 for epoch in range(epochs):
-    optimizer.zero_grad()
-    outputs = trained_nn(X_train_tensor)
-    loss = criterion(outputs, y_train_tensor)
-    loss.backward()
-    optimizer.step()
+    permutation = torch.randperm(X_train_img.size()[0])
+    epoch_loss = 0.0
+    for i in range(0, X_train_img.size()[0], batch_size):
+        batch_indices = permutation[i:i+batch_size]
+        batch_img = X_train_img[batch_indices]
+        batch_tab = X_train_tab[batch_indices]
+        batch_y = y_train_tensor[batch_indices]
+        
+        optimizer.zero_grad()
+        outputs = trained_nn(batch_img, batch_tab)
+        loss = criterion(outputs, batch_y)
+        loss.backward()
+        optimizer.step()
+        epoch_loss += loss.item()
+        
+    if (epoch + 1) % 10 == 0:
+        print(f"  Epoka {epoch+1:02d}/{epochs} | Średni błąd loss: {epoch_loss / (X_train_img.size()[0]/batch_size):.4f}")
 
 trained_nn.eval()
 with torch.no_grad():
-    val_outputs = trained_nn(X_val_tensor)
+    val_outputs = trained_nn(X_val_img, X_val_tab)
     _, predicted = torch.max(val_outputs, 1)
     y_pred = predicted.numpy()
 
@@ -210,7 +304,7 @@ val_metrics_text = classification_report(y_val, y_pred, target_names=list(class_
 
 run_diagnostic_report(trained_nn, scaler, class_mapping, reverse_mapping, val_metrics_text)
 
-print("[SYSTEM] Sieć neuronowa została pomyślnie wytrenowana i zsynchronizowana.")
+print("[SYSTEM] Wielowejściowa sieć neuronowa została pomyślnie wytrenowana i zsynchronizowana.")
 
 # =====================================================================
 # GLOBALNE OBIEKTY
