@@ -6,12 +6,12 @@
 
                  precision    recall  f1-score   support
 
-   GO_TO_CHARGE       0.93      0.94      0.93       205
-CONTINUE_MINING       0.93      0.93      0.93       195
+   GO_TO_CHARGE       0.94      0.91      0.92       212
+CONTINUE_MINING       0.90      0.93      0.92       188
 
-       accuracy                           0.93       400
-      macro avg       0.93      0.93      0.93       400
-   weighted avg       0.93      0.93      0.93       400
+       accuracy                           0.92       400
+      macro avg       0.92      0.92      0.92       400
+   weighted avg       0.92      0.92      0.92       400
 
 
 ================================================================================

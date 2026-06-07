@@ -1,4 +1,5 @@
 import random
+import copy
 from typing import List, Tuple, Dict, Any, Set
 from .genetic_map import generate_optimal_map
 
@@ -44,7 +45,10 @@ class Environment:
     WEATHER_CONDITIONS = ["Clear_Skies", "Cloudy", "Partly_Cloudy", "Foggy", "Sand_Dust_Calm", "Sand_Dust_Storm"]
     WEATHER_WEIGHTS = [40, 15, 20, 10, 10, 5]
 
-    def __init__(self, width: int = 20, height: int = 15):
+    # Глобальный кэш класса для хранения сгенерированных карт определенных размеров
+    _cached_grids: Dict[Tuple[int, int], List[List[int]]] = {}
+
+    def __init__(self, width: int = 20, height: int = 15, force_new_map: bool = False):
         self.width = width
         self.height = height
         
@@ -55,15 +59,18 @@ class Environment:
         self.grid: List[List[int]] = []
         self.objects: List[GameObject] = []
         
-        self.reset()
+        self.reset(force_new_map=force_new_map)
 
-    def reset(self) -> Tuple[int, int]:
+    def reset(self, force_new_map: bool = False) -> Tuple[int, int]:
         self.step_counter = 0
         self.time_of_day = 0
         self.weather = "Clear_Skies"
         self.objects.clear()
         
-        self._generate_terrain()
+        # Генерируем или загружаем из кэша карту
+        if force_new_map or not self.grid:
+            self._generate_terrain(force_new=force_new_map)
+            
         self._populate_objects()
         
         return self._get_free_sand_position()    
@@ -121,9 +128,15 @@ class Environment:
     def get_terrain_type(self, x: int, y: int) -> int:
         return self.grid[y][x]
 
-    def _generate_terrain(self) -> None:
-        # Вместо случайного выбора используем генетический алгоритм
-        self.grid = generate_optimal_map(self.width, self.height)
+    def _generate_terrain(self, force_new: bool = False) -> None:
+        key = (self.width, self.height)
+        
+        # Если принудительно запрошена новая карта или в кэше пусто — запускаем GA
+        if force_new or key not in Environment._cached_grids:
+            Environment._cached_grids[key] = generate_optimal_map(self.width, self.height)
+            
+        # Копируем карту из кэша, чтобы избежать побочных эффектов перезаписи памяти
+        self.grid = [list(row) for row in Environment._cached_grids[key]]
 
     def _get_free_sand_position(self, occupied: Set[Tuple[int, int]] = None) -> Tuple[int, int]:
         if occupied is None:
@@ -146,13 +159,13 @@ class Environment:
             mineral_name = random.choice(mineral_names)
             self.objects.append(Mineral(mineral_name, x, y))
 
-        # 2 stacje ładowania (zamiast 3)
+        # 2 stacje ładowania
         for _ in range(2):
             x, y = self._get_free_sand_position(occupied_positions)
             occupied_positions.add((x, y))
             self.objects.append(ChargingStation(x, y))
 
-        # 1 Dedykowana Baza Naukowa (ScienceBase) do zdawania ładunku
+        # 1 Dedykowana Baza Naukowa (ScienceBase)
         x, y = self._get_free_sand_position(occupied_positions)
         occupied_positions.add((x, y))
         self.objects.append(ScienceBase(x, y))
