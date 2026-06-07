@@ -1,5 +1,6 @@
 import random
 from typing import List, Tuple, Dict, Any, Set
+from .genetic_map import generate_optimal_map
 
 class GameObject:
     def __init__(self, obj_type: str, x: int, y: int):
@@ -121,10 +122,8 @@ class Environment:
         return self.grid[y][x]
 
     def _generate_terrain(self) -> None:
-        self.grid = []
-        for _ in range(self.height):
-            row = [random.choices([0, 1, 2], weights=[70, 20, 10], k=1)[0] for _ in range(self.width)]
-            self.grid.append(row)
+        # Вместо случайного выбора используем генетический алгоритм
+        self.grid = generate_optimal_map(self.width, self.height)
 
     def _get_free_sand_position(self, occupied: Set[Tuple[int, int]] = None) -> Tuple[int, int]:
         if occupied is None:
