@@ -352,10 +352,8 @@ class Agent:
         return noisy_pixels
 
     def decide_next_macro_action(self, env: Environment, trained_nn, scaler, reverse_mapping: dict) -> str:
-        terrain = env.get_terrain_type(self.x, self.y)
-        pixels = self.terrain_to_pixels(terrain)
-
-        # Cechy znormalizowane tak, by były niezależne od ulepszeń sklepowych:
+        # Sieć decyzyjna używa WYŁĄCZNIE 7 cech telemetrycznych (bez "kamery").
+        # Cechy znormalizowane, by były niezależne od ulepszeń sklepowych:
         # bateria jako % pojemności, plecak jako stopień zapełnienia (0..1).
         battery_pct = (self.battery / self.max_battery * 100.0) if self.max_battery > 0 else 0.0
         fill_ratio = (self.current_weight() / self.capacity) if self.capacity > 0 else 1.0
@@ -368,7 +366,7 @@ class Agent:
             self._get_dist_to_mineral(env),
             self._get_dist_to_station(env),
             fill_ratio
-        ] + pixels])
+        ]])
 
 
         scaled_features = scaler.transform(raw_features) # Skalowanie cech (StandardScaler) [1]
