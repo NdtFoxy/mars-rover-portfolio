@@ -39,3 +39,7 @@ yarn-error.log*
 *.swp
 .DS_Store
 #/frontend_ue
+
+# Local mission selection (written by navigate.py)
+backend/mission_config.json
+mission_config.json
