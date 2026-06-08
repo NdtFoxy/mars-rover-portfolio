@@ -8,8 +8,10 @@ export interface AgentState {
   battery: number;
   max_battery: number;
   inventory: string[];
-  capacity: number;          // pojemność plecaka (kg) -- limit problemu plecakowego
+  capacity: number;          // limit wagi plecaka (kg)
   current_weight: number;    // aktualna waga ładunku (kg)
+  volume_capacity: number;   // limit objętości plecaka (l)
+  current_volume: number;    // aktualna objętość ładunku (l)
   status: string;
   current_plan: string[];
   money: number;
@@ -33,6 +35,7 @@ export interface GameObjectState {
   energy_pool?: number | null;
   value?: number | null;     // wartość minerału ($)
   weight?: number | null;    // waga minerału (kg)
+  volume?: number | null;    // objętość minerału (l)
 }
 
 export interface ShopItemState {
