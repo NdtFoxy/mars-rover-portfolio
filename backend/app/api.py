@@ -11,6 +11,11 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
 from PIL import Image
 import torchvision.transforms as transforms
+from rich import box
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+from rich.text import Text
 
 from .models import GameState
 from .core.environment import Environment, MINERAL_TYPES
@@ -308,107 +313,181 @@ agent = Agent(x=start_x, y=start_y)
 # TERMINAL UPRZĘŻY WIZUALIZACYJNEJ (DASHBOARD)
 # =====================================================================
 def print_pretty_console(environment: Environment, current_agent: Agent):
-    os.system('cls' if os.name == 'nt' else 'clear')
+    console = Console()
+    console.clear()
 
-    GREEN = "\033[92m"
-    YELLOW = "\033[93m"
-    RED = "\033[91m"
-    CYAN = "\033[96m"
-    BOLD = "\033[1m"
-    RESET = "\033[0m"
-
+    dashboard_width = 72
     b_val = current_agent.battery
-    b_color = GREEN if b_val > 50 else YELLOW if b_val > 20 else RED
-    UI_WIDTH = 40
-
-    active_minerals_count = sum(1 for obj in environment.objects if obj.type in ["Titanium", "Water Ice", "Hematite"] and obj.is_active)
-
-    def draw_line(content, color=RESET):
-        clean_content = content.replace(GREEN, "").replace(YELLOW, "").replace(RED, "").replace(CYAN, "").replace(BOLD, "").replace(RESET, "")
-        padding = UI_WIDTH - len(clean_content)
-        print(f"║ {color}{content}{RESET}{' ' * padding} ║")
-
-    print("╔" + "═" * (UI_WIDTH + 2) + "╗")
-    draw_line(f"{BOLD}MARS | SPACE LABORATORY (NEURAL NET ACTIVE){RESET}")
-    draw_line("PROJECT ARES: SURFACE EXPLORATION UNIT")
-    print("╠" + "═" * (UI_WIDTH + 2) + "╣")
-
-    draw_line(f"MISSION TIME : {environment.time_of_day:>5.2f} SOL")
-    draw_line(f"WEATHER      : {environment.weather.replace('_', ' ')}")
-
-    filled = int(b_val / 10)
+    battery_style = "green" if b_val > 50 else "yellow" if b_val > 20 else "red"
+    filled = max(0, min(10, int(b_val / 10)))
     battery_bar = f"[{'█' * filled}{'░' * (10 - filled)}]"
-    draw_line(f"ENERGY LEVEL : {b_color}{battery_bar} {b_val:>5.1f}%{RESET}")
 
-    draw_line(f"ROVER STATUS : {current_agent.status}")
-    draw_line(f"WAGA         : {current_agent.current_weight():>4.1f}/{current_agent.capacity:.0f} kg ({len(current_agent.inventory)} szt.)")
-    draw_line(f"OBJETOSC     : {current_agent.current_volume():>4.1f}/{current_agent.volume_capacity:.0f} l")
-    draw_line(f"BUDGET       : {YELLOW}${current_agent.money:>6.1f}{RESET}")
-
-    lvl = getattr(current_agent, "upgrade_levels", {})
-    draw_line(f"UPG: {CYAN}SOL{lvl.get('solar',0)} CMP{lvl.get('compressor',0)} CRG{lvl.get('cargo',0)} MOT{lvl.get('motor',0)} BAT{lvl.get('battery',0)} DRL{lvl.get('drill',0)}{RESET}")
-
-    lk = getattr(current_agent, "last_knapsack", None)
-    if lk:
-        draw_line(f"KNAPSACK[{lk['method']}]: {lk['count']}szt ${lk['value']:.0f} {lk['weight']:.0f}kg/{lk.get('volume',0):.0f}l")
-
+    active_minerals_count = sum(
+        1
+        for obj in environment.objects
+        if obj.type in ["Titanium", "Water Ice", "Hematite"] and obj.is_active
+    )
     nn_conf = getattr(current_agent, "nn_confidence", {"MINING": 0.0, "CHARGE": 0.0})
     mining_p = nn_conf.get("MINING", 0.0)
     charge_p = nn_conf.get("CHARGE", 0.0)
-    draw_line(f"NN THOUGHT   : MINING {CYAN}{mining_p:>5.1f}%{RESET} | CHARGE {CYAN}{charge_p:>5.1f}%{RESET}")
 
-    draw_line(f"MINERALS MAP : {active_minerals_count:>2d} ACTIVE")
-    print("╠" + "═" * (UI_WIDTH + 2) + "╣")
+    def value_text(value, style="white"):
+        return Text(str(value), style=style)
 
+    def add_metric(table, label, value):
+        if not isinstance(value, Text):
+            value = value_text(value)
+        table.add_row(Text(f"{label:<14}: ", style="bold white"), value)
+
+    stats = Table.grid(expand=True)
+    stats.add_column(no_wrap=True)
+    stats.add_column(ratio=1)
+
+    battery = Text()
+    battery.append(battery_bar, style=battery_style)
+    battery.append(f" {b_val:>5.1f}%")
+
+    upgrades = getattr(current_agent, "upgrade_levels", {})
+    upgrades_text = Text()
+    upgrades_text.append(f"SOL{upgrades.get('solar', 0)} ", style="cyan")
+    upgrades_text.append(f"CMP{upgrades.get('compressor', 0)} ", style="cyan")
+    upgrades_text.append(f"CRG{upgrades.get('cargo', 0)} ", style="cyan")
+    upgrades_text.append(f"MOT{upgrades.get('motor', 0)} ", style="cyan")
+    upgrades_text.append(f"BAT{upgrades.get('battery', 0)} ", style="cyan")
+    upgrades_text.append(f"DRL{upgrades.get('drill', 0)}", style="cyan")
+
+    thought = Text()
+    thought.append("MINING ")
+    thought.append(f"{mining_p:>5.1f}%", style="cyan")
+    thought.append(" | CHARGE ")
+    thought.append(f"{charge_p:>5.1f}%", style="cyan")
+
+    add_metric(stats, "MISSION TIME", f"{environment.time_of_day:>5.2f} SOL")
+    add_metric(stats, "WEATHER", environment.weather.replace("_", " "))
+    add_metric(stats, "ENERGY LEVEL", battery)
+    add_metric(stats, "ROVER STATUS", current_agent.status)
+    add_metric(
+        stats,
+        "WAGA",
+        f"{current_agent.current_weight():>4.1f}/{current_agent.capacity:.0f} kg ({len(current_agent.inventory)} szt.)",
+    )
+    add_metric(stats, "OBJETOSC", f"{current_agent.current_volume():>4.1f}/{current_agent.volume_capacity:.0f} l")
+    add_metric(stats, "BUDGET", Text(f"${current_agent.money:>6.1f}", style="yellow"))
+    add_metric(stats, "UPG", upgrades_text)
+
+    last_knapsack = getattr(current_agent, "last_knapsack", None)
+    if last_knapsack:
+        add_metric(
+            stats,
+            f"KNAPSACK[{last_knapsack['method']}]",
+            (
+                f"{last_knapsack['count']}szt ${last_knapsack['value']:.0f} "
+                f"{last_knapsack['weight']:.0f}kg/{last_knapsack.get('volume', 0):.0f}l"
+            ),
+        )
+
+    add_metric(stats, "NN THOUGHT", thought)
+
+    def tile_for(x_idx, y_idx):
+        if current_agent.x == x_idx and current_agent.y == y_idx:
+            return "RV", "bold magenta"
+
+        obj = next(
+            (o for o in environment.objects if o.x == x_idx and o.y == y_idx and o.is_active),
+            None,
+        )
+        if obj:
+            if obj.type == "ChargingStation":
+                return "CH", "bold yellow"
+            if obj.type == "ScienceBase":
+                return "BA", "bold cyan"
+            if obj.type == "Titanium":
+                return "Ti", "bright_white"
+            if obj.type == "Water Ice":
+                return "Wi", "bright_blue"
+            if obj.type == "Hematite":
+                return "He", "bright_red"
+            return "Wi", "bright_blue"
+
+        terrain = environment.get_terrain_type(x_idx, y_idx)
+        if terrain == 1:
+            return "##", "white"
+        if terrain == 2:
+            return "()", "grey54"
+        return " ", "grey23"
+
+    map_text = Text(no_wrap=True)
     for y_idx in range(environment.height):
-        row = ""
         for x_idx in range(environment.width):
-            if current_agent.x == x_idx and current_agent.y == y_idx:
-                row += "🤖 "
-            else:
-                obj = next((o for o in environment.objects if o.x == x_idx and o.y == y_idx and o.is_active), None)
-                if obj:
-                    if obj.type == "ChargingStation":
-                        row += "⚡ "
-                    elif obj.type == "ScienceBase":
-                        row += "🚀 "
-                    elif obj.type == "Titanium":
-                        row += "🔘 "
-                    elif obj.type == "Water Ice":
-                        row += "💎 "
-                    elif obj.type == "Hematite":
-                        row += "🔴 "
-                    else:
-                        row += "💎 "
-                else:
-                    t = environment.get_terrain_type(x_idx, y_idx)
-                    if t == 0:
-                        row += "  "
-                    elif t == 1:
-                        row += "🪨 "
-                    else:
-                        row += "⚫ "
-        print(f"║ {row} ║")
-
-    print("╠" + "═" * (UI_WIDTH + 2) + "╣")
-
-    # ---- SYSTEM DECYZYJNY (SIEĆ NEURONOWA CNN + MLP) ----
-    draw_line(" [ SYSTEM DECYZYJNY (CNN + MLP) ]")
+            symbol, style = tile_for(x_idx, y_idx)
+            map_text.append(f"{symbol:<2}", style=style)
+            if x_idx < environment.width - 1:
+                map_text.append(" ")
+        if y_idx < environment.height - 1:
+            map_text.append("\n")
 
     weather_mult = current_agent.WEATHER_MULTIPLIERS.get(environment.weather, 1.0)
-    draw_line(f" TELEMETRIA: Bat:{b_val:.0f}%|Czas:{environment.time_of_day:.1f}h|Pogoda:{weather_mult:.1f}")
-    draw_line(f" SIEĆ: CNN (obraz UE5 32x32) + MLP (7 cech)")
-
-    mining_p = current_agent.nn_confidence['MINING']
-    charge_p = current_agent.nn_confidence['CHARGE']
     selected_act = "MINING" if mining_p > charge_p else "CHARGE"
 
-    draw_line(f" PROB: MINING {mining_p:.1f}% | CHARGE {charge_p:.1f}%")
-    draw_line(f" DECYZJA SIECI: -> {selected_act} (Aktywny)")
+    decision = Table.grid(expand=True)
+    decision.add_column(no_wrap=True)
+    decision.add_column(ratio=1)
+    add_metric(decision, "TELEMETRIA", f"Bat:{b_val:.0f}% | Czas:{environment.time_of_day:.1f}h | Pogoda:{weather_mult:.1f}")
+    add_metric(decision, "SIEĆ", "CNN (obraz UE5 32x32) + MLP (7 cech)")
+    add_metric(decision, "PROB", f"MINING {mining_p:.1f}% | CHARGE {charge_p:.1f}%")
+    add_metric(decision, "DECYZJA SIECI", f"-> {selected_act} (Aktywny)")
 
-    print("╚" + "═" * (UI_WIDTH + 2) + "╝")
-    print(f"[ telemetry.link ] step: {environment.step_counter:04d} | data_sync: OK")
-    print("🚀 Baza+Sklep | ⚡ Ładowarka | 🔘 Tytan ($100/8kg) | 💎 Lód ($50/3kg) | 🔴 Hematyt ($30/5kg) | 🪨 Skała | ⚫ Krater")
+    footer = Text()
+    footer.append("[ telemetry.link ]", style="bold cyan")
+    footer.append(f" step: {environment.step_counter:04d} | data sync: OK")
+
+    legend = Text()
+    legend.append("BA Baza+Sklep", style="cyan")
+    legend.append(" | ")
+    legend.append("CH Ładowarka", style="yellow")
+    legend.append(" | ")
+    legend.append("Ti Tytan ($100/8kg)", style="bright_white")
+    legend.append(" | ")
+    legend.append("Wi Lód ($50/3kg)", style="bright_blue")
+    legend.append(" | ")
+    legend.append("He Hematyt ($30/5kg)", style="bright_red")
+    legend.append(" | ")
+    legend.append("## Skała", style="white")
+    legend.append(" | ")
+    legend.append("() Krater", style="grey54")
+    legend.append(" | ")
+    legend.append("RV Rover", style="magenta")
+
+    console.print(
+        Panel(
+            stats,
+            title="MARS | SPACE LABORATORY (NEURAL NET ACTIVE)",
+            subtitle="PROJECT ARES: SURFACE EXPLORATION UNIT",
+            border_style="cyan",
+            box=box.DOUBLE,
+            width=dashboard_width,
+        )
+    )
+    console.print(
+        Panel(
+            map_text,
+            title=f"MINERALS MAP: {active_minerals_count:02d} ACTIVE",
+            border_style="green",
+            box=box.SQUARE,
+            width=dashboard_width,
+        )
+    )
+    console.print(
+        Panel(
+            decision,
+            title="SYSTEM DECYZYJNY (CNN + MLP)",
+            border_style="magenta",
+            box=box.SQUARE,
+            width=dashboard_width,
+        )
+    )
+    console.print(Panel(footer, border_style="bright_black", box=box.SIMPLE, width=dashboard_width))
+    console.print(Panel(legend, border_style="bright_black", box=box.SIMPLE, width=dashboard_width))
 
 # =====================================================================
 # API ENDPOINTS
