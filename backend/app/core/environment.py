@@ -3,6 +3,18 @@ import copy
 from typing import List, Tuple, Dict, Any, Set
 from .genetic_map import generate_optimal_map
 
+# =====================================================================
+# SPECYFIKACJA MATERIAŁÓW (waga + wartość) -- podstawa problemu plecakowego
+# Każdy minerał ma WARTOŚĆ ($) oraz WAGĘ (kg). Łazik ma ograniczoną
+# pojemność plecaka (kg), więc nie zmieści wszystkiego -> problem plecakowy.
+# =====================================================================
+MATERIAL_SPECS: Dict[str, Dict[str, float]] = {
+    "Titanium":  {"value": 100.0, "weight": 8.0},  # ciężki, drogi
+    "Water Ice": {"value": 50.0,  "weight": 3.0},  # lekki, opłacalny gęstościowo
+    "Hematite":  {"value": 30.0,  "weight": 5.0},  # średni
+}
+MINERAL_TYPES: List[str] = list(MATERIAL_SPECS.keys())
+
 class GameObject:
     def __init__(self, obj_type: str, x: int, y: int):
         self.type = obj_type
@@ -21,6 +33,15 @@ class GameObject:
 class Mineral(GameObject):
     def __init__(self, name: str, x: int, y: int):
         super().__init__(name, x, y)
+        spec = MATERIAL_SPECS.get(name, {"value": 10.0, "weight": 1.0})
+        self.value: float = spec["value"]
+        self.weight: float = spec["weight"]
+
+    def to_dict(self) -> Dict[str, Any]:
+        data = super().to_dict()
+        data["value"] = self.value
+        data["weight"] = self.weight
+        return data
 
 class ChargingStation(GameObject):
     def __init__(self, x: int, y: int):

@@ -11,9 +11,11 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report
 
 from .models import GameState
-from .core.environment import Environment
+from .core.environment import Environment, MINERAL_TYPES
 from .core.agent import Agent
 from .core.decision_tree_agent import generate_dataset
+from .core import shop
+from .core.knapsack import items_from_minerals, compare_knapsack
 
 router = APIRouter()
 
@@ -66,15 +68,15 @@ def generate_balanced_dataset(required_per_class: int = 1000):
         for _, row in batch.iterrows():
             dist = row["dist_to_station"]
             battery = row["battery_level"]
-            inventory_size = row["inventory_size"]
-            
-            # 🚨 NAPRAWA BŁĘDU ŚMIERCI 
+            inventory_fill_ratio = row["inventory_fill_ratio"]
+
+            # 🚨 NAPRAWA BŁĘDU ŚMIERCI
             # Dystans * 2.5 (bo skały kosztują 2.0, a obrót 1.0)
             # Żelazna rezerwa 30.0% na wypadek nocy (brak słońca po 20:00)
-            safety_margin = 30.0  
+            safety_margin = 30.0
             energy_needed_to_return = (dist * 2.5) + safety_margin
-            
-            if battery < energy_needed_to_return or inventory_size >= 8:
+
+            if battery < energy_needed_to_return or inventory_fill_ratio >= 0.95:
                 corrected_decision = "GO_TO_CHARGE"
             else:
                 corrected_decision = row["target_decision"]
@@ -105,10 +107,10 @@ def run_diagnostic_report(model, scaler, class_mapping, reverse_mapping, val_met
     full_report.append("[2. SYMULACJA SCENARIUSZY TESTOWYCH - ANALIZA BEZPIECZEŃSTWA]:\n")
 
     scenarios = [
-        {"desc": "Pełna bateria, blisko minerał, daleka baza", "features": [90.0, 12.0, 1.0, 1.0, 3.0, 20.0, 2.0] + terrain_to_pixels(0)},
-        {"desc": "Słaba bateria (30%), stacja bardzo daleko (18 pól) -> Krytyczny powrót", "features": [30.0, 12.0, 1.0, 1.0, 5.0, 18.0, 1.0] + terrain_to_pixels(0)},
-        {"desc": "Średnia bateria (40%), stacja blisko (5 pól) -> Bezpieczna regeneracja", "features": [40.0, 8.0, 0.5, 0.8, 2.0, 5.0, 4.0] + terrain_to_pixels(1)},
-        {"desc": "Bateria 80%, pełny ekwipunek (8/8) -> Nakaz powrotu do bazy i sprzedaży", "features": [80.0, 14.0, 0.9, 1.0, 4.0, 10.0, 8.0] + terrain_to_pixels(0)}
+        {"desc": "Pełna bateria, blisko minerał, daleka baza", "features": [90.0, 12.0, 1.0, 1.0, 3.0, 20.0, 0.2] + terrain_to_pixels(0)},
+        {"desc": "Słaba bateria (30%), stacja bardzo daleko (18 pól) -> Krytyczny powrót", "features": [30.0, 12.0, 1.0, 1.0, 5.0, 18.0, 0.1] + terrain_to_pixels(0)},
+        {"desc": "Średnia bateria (40%), stacja blisko (5 pól) -> Bezpieczna regeneracja", "features": [40.0, 8.0, 0.5, 0.8, 2.0, 5.0, 0.5] + terrain_to_pixels(1)},
+        {"desc": "Bateria 80%, pełny plecak (~100%) -> Nakaz powrotu do bazy i sprzedaży", "features": [80.0, 14.0, 0.9, 1.0, 4.0, 10.0, 0.97] + terrain_to_pixels(0)}
     ]
     
     model.eval()
@@ -125,12 +127,12 @@ def run_diagnostic_report(model, scaler, class_mapping, reverse_mapping, val_met
             decision = reverse_mapping[pred_idx]
             
         full_report.append(f"Scenariusz {i}: {sc['desc']}")
-        full_report.append(f"  Wejście: Bat={sc['features'][0]}%, DystStacja={sc['features'][5]}, Ekwipunek={sc['features'][6]}/8")
+        full_report.append(f"  Wejście: Bat={sc['features'][0]}%, DystStacja={sc['features'][5]}, Plecak={sc['features'][6]*100:.0f}%")
         full_report.append(f"  Decyzja Sieci: {decision}")
         full_report.append("-" * 50)
-        
+
         terminal_summary.append(
-            f" Scenariusz {i} (Bat: {sc['features'][0]}%, Ekwipunek: {sc['features'][6]}/8) -> Decyzja: \033[92m{decision}\033[0m"
+            f" Scenariusz {i} (Bat: {sc['features'][0]}%, Plecak: {sc['features'][6]*100:.0f}%) -> Decyzja: \033[92m{decision}\033[0m"
         )
         
     full_report.append("\n[KONIEC RAPORTU]")
@@ -167,9 +169,9 @@ df_pixels = pd.DataFrame(pixel_data, columns=pixel_cols, index=raw_dataset.index
 raw_dataset = pd.concat([raw_dataset, df_pixels], axis=1)
 
 features = [
-    "battery_level", "time_of_day", "solar_efficiency", 
-    "weather_multiplier", "dist_to_mineral", 
-    "dist_to_station", "inventory_size"
+    "battery_level", "time_of_day", "solar_efficiency",
+    "weather_multiplier", "dist_to_mineral",
+    "dist_to_station", "inventory_fill_ratio"
 ] + pixel_cols
 
 X_raw = raw_dataset[features].values
@@ -256,9 +258,16 @@ def print_pretty_console(environment: Environment, current_agent: Agent):
     draw_line(f"ENERGY LEVEL : {b_color}{battery_bar} {b_val:>5.1f}%{RESET}")
     
     draw_line(f"ROVER STATUS : {current_agent.status}")
-    draw_line(f"PAYLOAD      : {len(current_agent.inventory)}/8 SAMPLES")
+    draw_line(f"PAYLOAD      : {current_agent.current_weight():>4.1f}/{current_agent.capacity:.0f} kg ({len(current_agent.inventory)} szt.)")
     draw_line(f"BUDGET       : {YELLOW}${current_agent.money:>6.1f}{RESET}")
-    
+
+    lvl = getattr(current_agent, "upgrade_levels", {})
+    draw_line(f"UPGRADES     : {CYAN}BAG{lvl.get('backpack',0)} BAT{lvl.get('battery',0)} MOT{lvl.get('motor',0)} SOL{lvl.get('solar',0)}{RESET}")
+
+    lk = getattr(current_agent, "last_knapsack", None)
+    if lk:
+        draw_line(f"KNAPSACK[{lk['method']}]: {lk['count']} szt | ${lk['value']:.0f} | {lk['weight']:.0f}kg")
+
     nn_conf = getattr(current_agent, "nn_confidence", {"MINING": 0.0, "CHARGE": 0.0})
     mining_p = nn_conf.get("MINING", 0.0)
     charge_p = nn_conf.get("CHARGE", 0.0)
@@ -371,7 +380,7 @@ def print_pretty_console(environment: Environment, current_agent: Agent):
 
     print("╚" + "═" * (UI_WIDTH + 2) + "╝")
     print(f"[ telemetry.link ] step: {environment.step_counter:04d} | data_sync: OK")
-    print("🚀 Baza | ⚡ Ładowarka | 🔘 Tytan ($100) | 💎 Lód ($50) | 🔴 Hematyt ($30) | 🪨 Skała | ⚫ Krater")
+    print("🚀 Baza+Sklep | ⚡ Ładowarka | 🔘 Tytan ($100/8kg) | 💎 Lód ($50/3kg) | 🔴 Hematyt ($30/5kg) | 🪨 Skała | ⚫ Krater")
 
 # =====================================================================
 # API ENDPOINTS
@@ -388,7 +397,8 @@ async def get_current_state():
             "weather": env_dict["weather"]
         },
         grid=env_dict["grid"],
-        objects=env_dict["objects"]
+        objects=env_dict["objects"],
+        shop=shop.get_shop_state(agent)
     )
 
 @router.post("/step", response_model=GameState)
@@ -417,3 +427,36 @@ async def restart_simulation():
     agent = Agent(x=start_x, y=start_y)
     print_pretty_console(env, agent)
     return await get_current_state()
+
+# =====================================================================
+# SKLEP Z ULEPSZENIAMI (Shop)
+# =====================================================================
+@router.get("/shop")
+async def get_shop():
+    return {
+        "money": round(agent.money, 2),
+        "inventory": agent.inventory,
+        "items": shop.get_shop_state(agent),
+    }
+
+@router.post("/shop/buy/{upgrade_id}")
+async def buy_upgrade(upgrade_id: str):
+    """Ręczny zakup ulepszenia (pieniądze + materiały)."""
+    result = shop.purchase_upgrade(agent, upgrade_id)
+    result["money"] = round(agent.money, 2)
+    result["items"] = shop.get_shop_state(agent)
+    return result
+
+# =====================================================================
+# PROBLEM PLECAKOWY (Knapsack): porównanie GA vs DP na bieżącej mapie
+# =====================================================================
+@router.get("/knapsack")
+async def knapsack_compare():
+    """
+    Rozwiązuje problem plecakowy dla aktualnie widocznych minerałów (limit =
+    wolne miejsce w plecaku) dwoma metodami i zwraca porównanie GA vs DP.
+    """
+    active = [m for m in env.objects if m.is_active and m.type in MINERAL_TYPES]
+    items = items_from_minerals(active)
+    remaining = max(0.0, agent.capacity - agent.current_weight())
+    return compare_knapsack(items, remaining)
