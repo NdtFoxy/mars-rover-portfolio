@@ -164,3 +164,11 @@ This document tracks the individual contributions of team members for the "Auton
     *   Materiały potrzebne na ulepszenie dostają premię w funkcji celu GA — łazik dynamicznie zmienia priorytety wydobycia (łączy plecak ze sklepem).
     *   Endpoint diagnostyczny **`/knapsack`** zwraca porównanie GA vs DP na bieżącej mapie.
     *   Dodano twardy bezpiecznik energetyczny (`_needs_emergency_charge` + histereza ładowania), dzięki któremu łazik przeżywa wystarczająco długo, by zademonstrować całą pętlę ekonomiczną.
+
+*   **Uproszczenie sieci decyzyjnej (usunięcie syntetycznej "kamery"):**
+    *   Sieć decyzyjna (MLP) korzysta teraz wyłącznie z **7 cech telemetrycznych** (bateria, pora dnia, słońce, pogoda, dystanse, zapełnienie plecaka) — usunięto sztuczną macierz pikseli 3×3 z wejścia sieci oraz z konsoli. Dokładność walidacji **0.92 → 0.96**.
+    *   Analiza obrazu (kamera) należy do osobnej wersji projektu (multimodalna CNN na zdjęciach UE5); pola `camera_feed_type` i `camera_matrix` pozostają w JSON `/state` dla zgodności z frontendem UE5.
+
+*   **Zarządzanie wersjami projektu (Git) oraz prezentacja:**
+    *   Wersje utrzymywane jako osobne gałęzie/tagi: `wersja-algorytm-genetyczny` (ta praca) oraz `wersja-siec-cnn` (wcześniejsze zadanie — multimodalna CNN). Umożliwia to oddzielną prezentację każdego zadania prowadzącemu.
+    *   Skrypt `demo_genetyczny.py` — prezentacja algorytmu genetycznego (zbiór danych, operatory ewolucyjne, decyzja GA vs DP) krok po kroku.
