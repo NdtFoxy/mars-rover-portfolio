@@ -165,6 +165,14 @@ This document tracks the individual contributions of team members for the "Auton
     *   Endpoint diagnostyczny **`/knapsack`** zwraca porównanie GA vs DP na bieżącej mapie.
     *   Dodano twardy bezpiecznik energetyczny (`_needs_emergency_charge` + histereza ładowania), dzięki któremu łazik przeżywa wystarczająco długo, by zademonstrować całą pętlę ekonomiczną.
 
+*   **Rozszerzenie do WIELOWYMIAROWEGO problemu plecakowego (waga + objętość):**
+    *   Każdy minerał ma teraz wagę (kg) ORAZ objętość (l), a plecak dwa niezależne limity. Powstają realne kompromisy: Lód jest lekki, lecz objętościowy; Tytan ciężki, lecz kompaktowy.
+    *   DP rozszerzono na 2 wymiary `O(n·W·V)`; GA karze przekroczenie KTÓREGOKOLWIEK limitu. Walidacja GA vs DP nadal trzyma optimum (20/20, gap 0.00%).
+
+*   **Rozbudowany sklep (6 ulepszeń, część z DEBUFFAMI / kompromisami):**
+    *   Ładownia (+8 kg, +6 l), Panele (+0.6× słońce, **−3 l**), Silnik (−15% ruch, **−10 baterii**), Ogniwo (+30 baterii, **+5% ruch**), Kompresor (−15% objętości minerałów), Wiertło (+15% ceny sprzedaży, **+8% ruch**).
+    *   Debuffy tworzą realne decyzje zakupowe (trade-off), a nie wyłącznie wzmocnienia. Nowe atrybuty agenta: `volume_capacity`, `volume_factor`, `sell_bonus`.
+
 *   **Uproszczenie sieci decyzyjnej (usunięcie syntetycznej "kamery"):**
     *   Sieć decyzyjna (MLP) korzysta teraz wyłącznie z **7 cech telemetrycznych** (bateria, pora dnia, słońce, pogoda, dystanse, zapełnienie plecaka) — usunięto sztuczną macierz pikseli 3×3 z wejścia sieci oraz z konsoli. Dokładność walidacji **0.92 → 0.96**.
     *   Analiza obrazu (kamera) należy do osobnej wersji projektu (multimodalna CNN na zdjęciach UE5); pola `camera_feed_type` i `camera_matrix` pozostają w JSON `/state` dla zgodności z frontendem UE5.

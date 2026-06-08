@@ -2,11 +2,12 @@
 """
 =====================================================================
  SKRYPT PREZENTACYJNY DLA PROWADZĄCEGO
- Zadanie projektowe: ALGORYTMY GENETYCZNE  (Problem plecakowy)
+ Zadanie projektowe: ALGORYTMY GENETYCZNE
+ Wielowymiarowy problem plecakowy (waga + objętość)
 =====================================================================
 
 Pokazuje krok po kroku:
-  CZĘŚĆ 1 — ZBIÓR DANYCH (instancja problemu: minerały do spakowania)
+  CZĘŚĆ 1 — ZBIÓR DANYCH (minerały: waga, objętość, wartość; 2 limity plecaka)
   CZĘŚĆ 2 — ALGORYTM GENETYCZNY: selekcja RULETKOWA, KRZYŻOWANIE, MUTACJA
   CZĘŚĆ 3 — DECYZJA GA (co spakować) + weryfikacja optymalności (GA vs DP)
   CZĘŚĆ 4 — ZBIÓR UCZĄCY sieci neuronowej + jakie DECYZJE podejmuje
@@ -18,7 +19,7 @@ Uruchomienie (z katalogu backend/):
 import random
 from app.core.environment import MATERIAL_SPECS, MINERAL_TYPES
 from app.core.knapsack import (
-    KnapsackItem, KnapsackGA, solve_knapsack_dp, solve_knapsack_ga,
+    KnapsackItem, KnapsackGA, solve_knapsack_dp,
 )
 
 LINE = "=" * 70
@@ -26,11 +27,12 @@ random.seed(42)  # powtarzalność prezentacji
 
 
 def chromo_summary(genes, items):
-    """Opis osobnika: spakowane przedmioty, waga, wartość."""
+    """Opis osobnika: spakowane przedmioty, waga, objętość, wartość."""
     packed = [items[i].name for i, g in enumerate(genes) if g]
     weight = sum(items[i].weight for i, g in enumerate(genes) if g)
+    volume = sum(items[i].volume for i, g in enumerate(genes) if g)
     value = sum(items[i].value for i, g in enumerate(genes) if g)
-    return packed, weight, value
+    return packed, weight, volume, value
 
 
 def bits(genes):
@@ -38,32 +40,34 @@ def bits(genes):
 
 
 # =====================================================================
-def part1_dataset(items, capacity):
+def part1_dataset(items, cap_w, cap_v):
     print(LINE)
-    print(" CZĘŚĆ 1.  ZBIÓR DANYCH  —  instancja problemu plecakowego")
+    print(" CZĘŚĆ 1.  ZBIÓR DANYCH  —  wielowymiarowy problem plecakowy")
     print(LINE)
-    print(f" Pojemność plecaka łazika:  W = {capacity:g} kg\n")
-    print(f" {'#':>2}  {'Minerał':<12} {'Waga':>6} {'Wartość':>9} {'Gęstość $/kg':>13}")
-    print(" " + "-" * 46)
-    total_w = 0.0
+    print(f" Limity plecaka łazika:  WAGA <= {cap_w:g} kg   ORAZ   OBJĘTOŚĆ <= {cap_v:g} l\n")
+    print(f" {'#':>2}  {'Minerał':<11} {'Waga':>6} {'Objęt.':>7} {'Wartość':>9}")
+    print(" " + "-" * 42)
+    total_w = total_v = 0.0
     for i, it in enumerate(items, 1):
         total_w += it.weight
-        print(f" {i:>2}  {it.name:<12} {it.weight:>4g}kg {('$'+str(int(it.value))):>9} "
-              f"{it.value/it.weight:>12.1f}")
-    print(" " + "-" * 46)
-    print(f" Suma wag wszystkich przedmiotów: {total_w:g} kg")
-    print(f" >> {total_w:g} kg > {capacity:g} kg  ⇒  NIE da się zabrać wszystkiego!")
-    print("    Trzeba wybrać NAJLEPSZY podzbiór = PROBLEM PLECAKOWY.\n")
+        total_v += it.volume
+        print(f" {i:>2}  {it.name:<11} {it.weight:>4g}kg {it.volume:>5g}l "
+              f"{('$'+str(int(it.value))):>9}")
+    print(" " + "-" * 42)
+    print(f" Suma wszystkich: {total_w:g} kg  oraz  {total_v:g} l")
+    print(f" >> {total_w:g} kg > {cap_w:g} kg  I  {total_v:g} l > {cap_v:g} l")
+    print("    Nie zmieści się wszystko ani wagowo, ani objętościowo!")
+    print("    Trzeba wybrać NAJLEPSZY podzbiór mieszczący się w OBU limitach.\n")
 
 
 # =====================================================================
-def part2_operators(items, capacity):
+def part2_operators(items, cap_w, cap_v):
     print(LINE)
     print(" CZĘŚĆ 2.  ALGORYTM GENETYCZNY  —  operatory ewolucyjne")
     print(LINE)
     print(" Reprezentacja: osobnik = wektor bitów; gen 1 = minerał w plecaku.\n")
 
-    ga = KnapsackGA(items, capacity, pop_size=6, mutation_rate=0.2, generations=40)
+    ga = KnapsackGA(items, cap_w, cap_v, pop_size=6, mutation_rate=0.2, generations=40)
     ga.init_population()
     for ind in ga.population:
         ga.evaluate_fitness(ind)
@@ -71,10 +75,10 @@ def part2_operators(items, capacity):
     # --- Populacja początkowa ---
     print(" Populacja początkowa (losowa) i jej przystosowanie (fitness):")
     for k, ind in enumerate(ga.population, 1):
-        _, w, v = chromo_summary(ind.genes, items)
-        flag = "  (za ciężki!)" if w > capacity else ""
-        print(f"   Osobnik {k}: {bits(ind.genes)}  waga={w:>4g}kg  wartość=${int(v):<4} "
-              f"fitness={ind.fitness:>6.1f}{flag}")
+        _, w, v, val = chromo_summary(ind.genes, items)
+        flag = "  (nie mieści się!)" if (w > cap_w or v > cap_v) else ""
+        print(f"   Osobnik {k}: {bits(ind.genes)}  {w:>4g}kg/{v:>4g}l  ${int(val):<4} "
+              f"fit={ind.fitness:>6.1f}{flag}")
 
     # --- SELEKCJA RULETKOWA ---
     print("\n [A] SELEKCJA RULETKOWA (reguła ruletki)")
@@ -130,12 +134,12 @@ def part2_operators(items, capacity):
 
 
 # =====================================================================
-def part3_decision(items, capacity):
+def part3_decision(items, cap_w, cap_v):
     print(LINE)
     print(" CZĘŚĆ 3.  DECYZJA ALGORYTMU + weryfikacja (GA vs DP)")
     print(LINE)
 
-    ga = KnapsackGA(items, capacity, pop_size=50, mutation_rate=0.05, generations=80)
+    ga = KnapsackGA(items, cap_w, cap_v, pop_size=50, mutation_rate=0.05, generations=80)
     best = None
     print(" Ewolucja (najlepszy fitness w kolejnych pokoleniach):")
     ga.init_population()
@@ -157,18 +161,18 @@ def part3_decision(items, capacity):
             newp.append(c)
         ga.population = newp
 
-    packed, w, v = chromo_summary(best.genes, items)
+    packed, w, v, val = chromo_summary(best.genes, items)
     print(f"\n >> DECYZJA GA: spakować {packed}")
-    print(f"    Łącznie: wartość = ${int(v)},  waga = {w:g}/{capacity:g} kg\n")
+    print(f"    Łącznie: wartość = ${int(val)},  waga = {w:g}/{cap_w:g} kg,  objętość = {v:g}/{cap_v:g} l\n")
 
-    dp_items, dp_val, dp_w = solve_knapsack_dp(items, capacity)
-    print(" Weryfikacja rozwiązaniem DOKŁADNYM (programowanie dynamiczne):")
+    dp_items, dp_val, dp_w, dp_v = solve_knapsack_dp(items, cap_w, cap_v)
+    print(" Weryfikacja rozwiązaniem DOKŁADNYM (programowanie dynamiczne 2D):")
     print(f"    DP (optimum): wartość = ${int(dp_val)},  przedmioty = {[it.name for it in dp_items]}")
-    print(f"    GA          : wartość = ${int(v)}")
-    if abs(dp_val - v) < 1e-6:
+    print(f"    GA          : wartość = ${int(val)}")
+    if abs(dp_val - val) < 1e-6:
         print("    WYNIK: ✔ GA znalazł rozwiązanie OPTYMALNE.\n")
     else:
-        print(f"    WYNIK: GA o ${int(dp_val - v)} od optimum (luka {(dp_val-v)/dp_val*100:.1f}%).\n")
+        print(f"    WYNIK: GA o ${int(dp_val - val)} od optimum (luka {(dp_val-val)/dp_val*100:.1f}%).\n")
 
 
 # =====================================================================
@@ -206,11 +210,13 @@ def part4_training_set():
 
 # =====================================================================
 def main():
-    # Stała, czytelna instancja problemu do prezentacji
-    capacity = 20.0
+    # Stała, czytelna instancja problemu do prezentacji (waga + objętość)
+    cap_w = 20.0
+    cap_v = 16.0
     demo_names = ["Titanium", "Water Ice", "Hematite", "Water Ice",
                   "Titanium", "Hematite", "Water Ice", "Titanium"]
-    items = [KnapsackItem(n, MATERIAL_SPECS[n]["weight"], MATERIAL_SPECS[n]["value"])
+    items = [KnapsackItem(n, MATERIAL_SPECS[n]["weight"], MATERIAL_SPECS[n]["volume"],
+                          MATERIAL_SPECS[n]["value"])
              for n in demo_names]
 
     print("\n" + LINE)
@@ -218,9 +224,9 @@ def main():
     print(" Projekt: Autonomiczny Łazik Marsjański")
     print(LINE + "\n")
 
-    part1_dataset(items, capacity)
-    part2_operators(items, capacity)
-    part3_decision(items, capacity)
+    part1_dataset(items, cap_w, cap_v)
+    part2_operators(items, cap_w, cap_v)
+    part3_decision(items, cap_w, cap_v)
     part4_training_set()
 
     print(LINE)

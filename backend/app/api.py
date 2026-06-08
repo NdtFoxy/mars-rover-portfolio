@@ -233,15 +233,16 @@ def print_pretty_console(environment: Environment, current_agent: Agent):
     draw_line(f"ENERGY LEVEL : {b_color}{battery_bar} {b_val:>5.1f}%{RESET}")
 
     draw_line(f"ROVER STATUS : {current_agent.status}")
-    draw_line(f"PAYLOAD      : {current_agent.current_weight():>4.1f}/{current_agent.capacity:.0f} kg ({len(current_agent.inventory)} szt.)")
+    draw_line(f"WAGA         : {current_agent.current_weight():>4.1f}/{current_agent.capacity:.0f} kg ({len(current_agent.inventory)} szt.)")
+    draw_line(f"OBJETOSC     : {current_agent.current_volume():>4.1f}/{current_agent.volume_capacity:.0f} l")
     draw_line(f"BUDGET       : {YELLOW}${current_agent.money:>6.1f}{RESET}")
 
     lvl = getattr(current_agent, "upgrade_levels", {})
-    draw_line(f"UPGRADES     : {CYAN}BAG{lvl.get('backpack',0)} BAT{lvl.get('battery',0)} MOT{lvl.get('motor',0)} SOL{lvl.get('solar',0)}{RESET}")
+    draw_line(f"UPG: {CYAN}SOL{lvl.get('solar',0)} CMP{lvl.get('compressor',0)} CRG{lvl.get('cargo',0)} MOT{lvl.get('motor',0)} BAT{lvl.get('battery',0)} DRL{lvl.get('drill',0)}{RESET}")
 
     lk = getattr(current_agent, "last_knapsack", None)
     if lk:
-        draw_line(f"KNAPSACK[{lk['method']}]: {lk['count']} szt | ${lk['value']:.0f} | {lk['weight']:.0f}kg")
+        draw_line(f"KNAPSACK[{lk['method']}]: {lk['count']}szt ${lk['value']:.0f} {lk['weight']:.0f}kg/{lk.get('volume',0):.0f}l")
 
     nn_conf = getattr(current_agent, "nn_confidence", {"MINING": 0.0, "CHARGE": 0.0})
     mining_p = nn_conf.get("MINING", 0.0)
@@ -377,5 +378,9 @@ async def knapsack_compare():
     """
     active = [m for m in env.objects if m.is_active and m.type in MINERAL_TYPES]
     items = items_from_minerals(active)
-    remaining = max(0.0, agent.capacity - agent.current_weight())
-    return compare_knapsack(items, remaining)
+    # Kompresor zmniejsza efektywną objętość przenoszonych minerałów
+    for it in items:
+        it.volume *= agent.volume_factor
+    rem_w = max(0.0, agent.capacity - agent.current_weight())
+    rem_v = max(0.0, agent.volume_capacity - agent.current_volume())
+    return compare_knapsack(items, rem_w, rem_v)

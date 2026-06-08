@@ -114,6 +114,7 @@ function App() {
   const env = gameState.environment;
   const battPct = a.max_battery > 0 ? (a.battery / a.max_battery) * 100 : 0;
   const fillPct = a.capacity > 0 ? (a.current_weight / a.capacity) * 100 : 0;
+  const volPct = a.volume_capacity > 0 ? (a.current_volume / a.volume_capacity) * 100 : 0;
   const battColor = battPct > 50 ? '#4caf50' : battPct > 20 ? '#e0b020' : '#e04040';
 
   // Zliczanie zawartości plecaka wg typu
@@ -155,8 +156,11 @@ function App() {
           <div style={{ margin: '8px 0 2px' }}>Bateria: {a.battery.toFixed(1)} / {a.max_battery.toFixed(0)}</div>
           <Bar pct={battPct} color={battColor} />
 
-          <div style={{ margin: '8px 0 2px' }}>Plecak: {a.current_weight.toFixed(1)} / {a.capacity.toFixed(0)} kg</div>
+          <div style={{ margin: '8px 0 2px' }}>Plecak — waga: {a.current_weight.toFixed(1)} / {a.capacity.toFixed(0)} kg</div>
           <Bar pct={fillPct} color="#4a90d9" />
+
+          <div style={{ margin: '8px 0 2px' }}>Plecak — objętość: {a.current_volume.toFixed(1)} / {a.volume_capacity.toFixed(0)} l</div>
+          <Bar pct={volPct} color="#9a6cd9" />
 
           <div style={{ ...rowStyle, marginTop: '10px' }}><span>💰 Budżet</span><strong>${a.money.toFixed(1)}</strong></div>
           <div style={rowStyle}>

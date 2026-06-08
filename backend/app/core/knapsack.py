@@ -1,18 +1,16 @@
 """
-PROBLEM PLECAKOWY (0/1 Knapsack) dla łazika marsjańskiego.
+WIELOWYMIAROWY PROBLEM PLECAKOWY (Multidimensional 0/1 Knapsack).
 
-Łazik napotyka zbiór minerałów, każdy o pewnej WADZE (kg) i WARTOŚCI ($).
-Plecak ma ograniczoną POJEMNOŚĆ (kg) -- nie zmieści wszystkiego. Trzeba więc
-wybrać taki podzbiór minerałów, który maksymalizuje sumaryczną wartość ($)
-nie przekraczając pojemności plecaka. To klasyczny problem plecakowy 0/1.
+Łazik napotyka zbiór minerałów, każdy o WADZE (kg), OBJĘTOŚCI (l) i WARTOŚCI ($).
+Plecak ma DWA limity: maksymalną wagę ORAZ maksymalną objętość. Trzeba wybrać
+podzbiór minerałów maksymalizujący wartość, mieszczący się w OBU limitach naraz.
 
 Dwa rozwiązania:
-  * solve_knapsack_dp  -- DOKŁADNE, programowanie dynamiczne  O(n * W)
+  * solve_knapsack_dp  -- DOKŁADNE, programowanie dynamiczne  O(n * W * V)
   * solve_knapsack_ga  -- ALGORYTM GENETYCZNY (krzyżowanie + mutacja + ruletka)
 
-Zadanie projektowe "Algorytmy genetyczne" realizuje GA. DP służy jako wzorzec
-do walidacji: pozwala udowodnić w raporcie, że GA znajduje wynik optymalny
-(albo zbliżony do optymalnego).
+Zadanie "Algorytmy genetyczne" realizuje GA; DP to wzorzec do walidacji
+optymalności (raport porównawczy GA vs DP).
 """
 
 import random
@@ -22,15 +20,16 @@ from typing import List, Tuple, Any, Optional
 
 
 class KnapsackItem:
-    """Pojedynczy przedmiot (minerał) kandydujący do włożenia do plecaka."""
-    def __init__(self, name: str, weight: float, value: float, ref: Any = None):
+    """Przedmiot (minerał) kandydujący do plecaka: waga, objętość, wartość."""
+    def __init__(self, name: str, weight: float, volume: float, value: float, ref: Any = None):
         self.name = name
         self.weight = weight
+        self.volume = volume
         self.value = value
         self.ref = ref  # opcjonalne odniesienie do obiektu Mineral (współrzędne itd.)
 
     def __repr__(self) -> str:
-        return f"{self.name}(w={self.weight:g}kg, v=${self.value:g})"
+        return f"{self.name}(w={self.weight:g}kg, v={self.volume:g}l, ${self.value:g})"
 
 
 def items_from_minerals(minerals: List[Any]) -> List[KnapsackItem]:
@@ -38,64 +37,68 @@ def items_from_minerals(minerals: List[Any]) -> List[KnapsackItem]:
     items = []
     for m in minerals:
         w = getattr(m, "weight", 1.0)
-        v = getattr(m, "value", 10.0)
-        items.append(KnapsackItem(m.type, w, v, ref=m))
+        vol = getattr(m, "volume", 1.0)
+        val = getattr(m, "value", 10.0)
+        items.append(KnapsackItem(m.type, w, vol, val, ref=m))
     return items
 
 
 # =====================================================================
-# 1. ROZWIĄZANIE DOKŁADNE -- PROGRAMOWANIE DYNAMICZNE (wzorzec optymalności)
+# 1. ROZWIĄZANIE DOKŁADNE -- PROGRAMOWANIE DYNAMICZNE 2D (wzorzec optymalności)
 # =====================================================================
-def solve_knapsack_dp(items: List[KnapsackItem], capacity: float
-                      ) -> Tuple[List[KnapsackItem], float, float]:
+def solve_knapsack_dp(items: List[KnapsackItem], cap_w: float, cap_v: float
+                      ) -> Tuple[List[KnapsackItem], float, float, float]:
     """
-    Dokładne rozwiązanie problemu plecakowego 0/1 metodą programowania
-    dynamicznego. Zwraca (wybrane_przedmioty, suma_wartości, suma_wag).
-    Wagi są zaokrąglane do liczb całkowitych na potrzeby tabeli DP.
+    Dokładne rozwiązanie wielowymiarowego problemu plecakowego 0/1 metodą
+    programowania dynamicznego po DWÓCH wymiarach (waga i objętość).
+    Zwraca (wybrane_przedmioty, suma_wartości, suma_wag, suma_objętości).
     """
     n = len(items)
-    W = int(round(capacity))
-    if n == 0 or W <= 0:
-        return [], 0.0, 0.0
+    W = int(round(cap_w))
+    V = int(round(cap_v))
+    if n == 0 or W <= 0 or V <= 0:
+        return [], 0.0, 0.0, 0.0
 
     weights = [max(0, int(round(it.weight))) for it in items]
+    vols = [max(0, int(round(it.volume))) for it in items]
     values = [it.value for it in items]
 
-    # dp[i][w] = maksymalna wartość przy użyciu pierwszych i przedmiotów i limicie w
-    dp = [[0.0] * (W + 1) for _ in range(n + 1)]
+    # dp[i][w][v] = maksymalna wartość przy pierwszych i przedmiotach,
+    # limicie wagi w oraz limicie objętości v
+    dp = [[[0.0] * (V + 1) for _ in range(W + 1)] for _ in range(n + 1)]
     for i in range(1, n + 1):
-        wi, vi = weights[i - 1], values[i - 1]
+        wi, vi, val = weights[i - 1], vols[i - 1], values[i - 1]
+        prev, cur = dp[i - 1], dp[i]
         for w in range(W + 1):
-            best = dp[i - 1][w]                       # nie bierzemy przedmiotu i
-            if wi <= w:
-                take = dp[i - 1][w - wi] + vi         # bierzemy przedmiot i
-                if take > best:
-                    best = take
-            dp[i][w] = best
+            for v in range(V + 1):
+                best = prev[w][v]                       # nie bierzemy przedmiotu i
+                if wi <= w and vi <= v:
+                    take = prev[w - wi][v - vi] + val   # bierzemy przedmiot i
+                    if take > best:
+                        best = take
+                cur[w][v] = best
 
-    # Odtworzenie wybranego podzbioru (backtracking po tabeli)
+    # Odtworzenie wybranego podzbioru (backtracking)
     chosen: List[KnapsackItem] = []
-    w = W
+    w, v = W, V
     for i in range(n, 0, -1):
-        if dp[i][w] != dp[i - 1][w]:
+        if dp[i][w][v] != dp[i - 1][w][v]:
             chosen.append(items[i - 1])
             w -= weights[i - 1]
+            v -= vols[i - 1]
     chosen.reverse()
 
-    total_value = dp[n][W]
+    total_value = dp[n][W][V]
     total_weight = sum(it.weight for it in chosen)
-    return chosen, total_value, total_weight
+    total_volume = sum(it.volume for it in chosen)
+    return chosen, total_value, total_weight, total_volume
 
 
 # =====================================================================
 # 2. ALGORYTM GENETYCZNY (selekcja ruletkowa + krzyżowanie + mutacja)
-#    Struktura analogiczna do genetic_map.py (spójność z resztą projektu).
 # =====================================================================
 class KnapsackChromosome:
-    """
-    Osobnik populacji = wektor bitów. genes[i] == 1 oznacza, że i-ty
-    przedmiot jest spakowany do plecaka.
-    """
+    """Osobnik = wektor bitów. genes[i] == 1 => i-ty przedmiot jest w plecaku."""
     def __init__(self, n: int, randomize: bool = True):
         self.n = n
         if randomize:
@@ -106,19 +109,19 @@ class KnapsackChromosome:
 
 
 class KnapsackGA:
-    """Ewolucja rozwiązań problemu plecakowego."""
-    def __init__(self, items: List[KnapsackItem], capacity: float,
+    """Ewolucja rozwiązań wielowymiarowego problemu plecakowego."""
+    def __init__(self, items: List[KnapsackItem], cap_w: float, cap_v: float,
                  pop_size: int = 50, mutation_rate: float = 0.05,
                  generations: int = 80):
         self.items = items
         self.n = len(items)
-        self.capacity = capacity
+        self.cap_w = cap_w
+        self.cap_v = cap_v
         self.pop_size = pop_size
         self.mutation_rate = mutation_rate
         self.generations = generations
         self.population: List[KnapsackChromosome] = []
-        # Kara za przekroczenie pojemności (na 1 kg nadwagi). Dobrana tak, by
-        # każde rozwiązanie dopuszczalne było lepsze od niedopuszczalnego.
+        # Kara za przekroczenie KTÓREGOKOLWIEK limitu (na jednostkę nadmiaru).
         self.penalty_factor = max((it.value for it in items), default=1.0)
 
     def init_population(self) -> None:
@@ -127,23 +130,22 @@ class KnapsackGA:
 
     def evaluate_fitness(self, chromo: KnapsackChromosome) -> float:
         """
-        Funkcja przystosowania: suma wartości spakowanych przedmiotów.
-        Przekroczenie pojemności plecaka jest karane (rozwiązanie
-        niedopuszczalne), ale fitness zawsze > 0, by selekcja ruletkowa
-        mogła działać poprawnie.
+        Funkcja przystosowania: suma wartości. Przekroczenie limitu wagi LUB
+        objętości jest karane (rozwiązanie niedopuszczalne), ale fitness > 0,
+        aby selekcja ruletkowa działała.
         """
-        total_w = 0.0
-        total_v = 0.0
+        total_w = total_v = total_val = 0.0
         for gene, item in zip(chromo.genes, self.items):
             if gene:
                 total_w += item.weight
-                total_v += item.value
+                total_v += item.volume
+                total_val += item.value
 
-        if total_w <= self.capacity:
-            chromo.fitness = max(0.1, total_v)
+        if total_w <= self.cap_w and total_v <= self.cap_v:
+            chromo.fitness = max(0.1, total_val)
         else:
-            overweight = total_w - self.capacity
-            chromo.fitness = max(0.1, total_v - self.penalty_factor * overweight)
+            overflow = max(0.0, total_w - self.cap_w) + max(0.0, total_v - self.cap_v)
+            chromo.fitness = max(0.1, total_val - self.penalty_factor * overflow)
         return chromo.fitness
 
     def roulette_wheel_selection(self) -> KnapsackChromosome:
@@ -216,61 +218,64 @@ class KnapsackGA:
         return best_overall
 
 
-def solve_knapsack_ga(items: List[KnapsackItem], capacity: float,
+def solve_knapsack_ga(items: List[KnapsackItem], cap_w: float, cap_v: float,
                       pop_size: int = 50, mutation_rate: float = 0.05,
                       generations: int = 80, verbose: bool = False
-                      ) -> Tuple[List[KnapsackItem], float, float]:
+                      ) -> Tuple[List[KnapsackItem], float, float, float]:
     """
-    Rozwiązuje problem plecakowy algorytmem genetycznym.
-    Zwraca (wybrane_przedmioty, suma_wartości, suma_wag).
-    Jeśli najlepszy osobnik okaże się niedopuszczalny (nadwaga), naprawiamy go
-    zachłannie -- usuwamy przedmioty o najniższym stosunku wartość/waga.
+    Rozwiązuje wielowymiarowy problem plecakowy algorytmem genetycznym.
+    Zwraca (wybrane_przedmioty, suma_wartości, suma_wag, suma_objętości).
+    Ewentualna nadwaga/nadobjętość jest naprawiana zachłannie -- usuwamy
+    przedmioty o najgorszym stosunku wartość/(waga+objętość).
     """
     if not items:
-        return [], 0.0, 0.0
+        return [], 0.0, 0.0, 0.0
 
-    ga = KnapsackGA(items, capacity, pop_size, mutation_rate, generations)
+    ga = KnapsackGA(items, cap_w, cap_v, pop_size, mutation_rate, generations)
     best = ga.run(verbose=verbose)
 
     chosen = [items[i] for i, g in enumerate(best.genes) if g]
 
-    # Naprawa ewentualnej nadwagi (gwarancja dopuszczalności wyniku)
-    total_w = sum(it.weight for it in chosen)
-    if total_w > capacity:
-        chosen.sort(key=lambda it: it.value / it.weight if it.weight else 1e9)
-        while chosen and sum(it.weight for it in chosen) > capacity:
+    # Naprawa: usuwaj najmniej opłacalne, aż zmieścimy się w OBU limitach
+    def over(sel):
+        return sum(it.weight for it in sel) > cap_w or sum(it.volume for it in sel) > cap_v
+    if over(chosen):
+        chosen.sort(key=lambda it: it.value / (it.weight + it.volume + 1e-9))
+        while chosen and over(chosen):
             chosen.pop(0)
 
     total_value = sum(it.value for it in chosen)
     total_weight = sum(it.weight for it in chosen)
-    return chosen, total_value, total_weight
+    total_volume = sum(it.volume for it in chosen)
+    return chosen, total_value, total_weight, total_volume
 
 
 # =====================================================================
 # 3. PORÓWNANIE GA vs DP (do raportu / endpointu diagnostycznego)
 # =====================================================================
-def compare_knapsack(items: List[KnapsackItem], capacity: float,
+def compare_knapsack(items: List[KnapsackItem], cap_w: float, cap_v: float,
                      ga_params: Optional[dict] = None) -> dict:
     """Uruchamia oba algorytmy na tej samej instancji i zwraca metryki."""
     ga_params = ga_params or {}
 
     t0 = time.perf_counter()
-    dp_items, dp_value, dp_weight = solve_knapsack_dp(items, capacity)
+    dp_items, dp_value, dp_w, dp_v = solve_knapsack_dp(items, cap_w, cap_v)
     dp_time = (time.perf_counter() - t0) * 1000.0
 
     t0 = time.perf_counter()
-    ga_items, ga_value, ga_weight = solve_knapsack_ga(items, capacity, **ga_params)
+    ga_items, ga_value, ga_w, ga_v = solve_knapsack_ga(items, cap_w, cap_v, **ga_params)
     ga_time = (time.perf_counter() - t0) * 1000.0
 
-    gap = (dp_value - ga_value)
+    gap = dp_value - ga_value
     gap_pct = (gap / dp_value * 100.0) if dp_value > 0 else 0.0
 
     return {
-        "capacity": capacity,
+        "cap_weight": cap_w,
+        "cap_volume": cap_v,
         "num_items": len(items),
-        "dp": {"value": round(dp_value, 2), "weight": round(dp_weight, 2),
+        "dp": {"value": round(dp_value, 2), "weight": round(dp_w, 2), "volume": round(dp_v, 2),
                "items": [it.name for it in dp_items], "time_ms": round(dp_time, 3)},
-        "ga": {"value": round(ga_value, 2), "weight": round(ga_weight, 2),
+        "ga": {"value": round(ga_value, 2), "weight": round(ga_w, 2), "volume": round(ga_v, 2),
                "items": [it.name for it in ga_items], "time_ms": round(ga_time, 3)},
         "gap_value": round(gap, 2),
         "gap_pct": round(gap_pct, 2),
@@ -278,22 +283,21 @@ def compare_knapsack(items: List[KnapsackItem], capacity: float,
     }
 
 
-def run_knapsack_experiment(num_items: int = 12, capacity: float = 20.0,
-                            trials: int = 20) -> None:
+def run_knapsack_experiment(num_items: int = 12, cap_w: float = 20.0,
+                            cap_v: float = 16.0, trials: int = 20) -> None:
     """
-    Eksperyment porównawczy: GA vs DP na wielu losowych instancjach problemu
-    plecakowego. Liczy, jak często GA trafia w optimum oraz średnią lukę (gap).
-    Wyniki zapisywane do 'knapsack_report.txt'.
+    Eksperyment porównawczy GA vs DP na wielu losowych instancjach
+    wielowymiarowego problemu plecakowego. Wyniki -> 'knapsack_report.txt'.
     """
     from .environment import MATERIAL_SPECS, MINERAL_TYPES
 
     lines: List[str] = []
     lines.append("=" * 78)
     lines.append("  RAPORT: ALGORYTM GENETYCZNY vs PROGRAMOWANIE DYNAMICZNE")
-    lines.append("  Problem plecakowy 0/1 -- pakowanie minerałów do łazika")
+    lines.append("  Wielowymiarowy problem plecakowy 0/1 (waga + objętość)")
     lines.append("=" * 78)
     lines.append(f"\nParametry: {trials} losowych instancji, {num_items} minerałów, "
-                 f"pojemność plecaka = {capacity:g} kg")
+                 f"limity plecaka = {cap_w:g} kg ORAZ {cap_v:g} l")
     lines.append("GA: populacja=50, pokolenia=80, mutacja=0.05, selekcja=ruletka\n")
     lines.append("-" * 78)
 
@@ -307,9 +311,9 @@ def run_knapsack_experiment(num_items: int = 12, capacity: float = 20.0,
         for _ in range(num_items):
             name = random.choice(MINERAL_TYPES)
             spec = MATERIAL_SPECS[name]
-            items.append(KnapsackItem(name, spec["weight"], spec["value"]))
+            items.append(KnapsackItem(name, spec["weight"], spec["volume"], spec["value"]))
 
-        res = compare_knapsack(items, capacity)
+        res = compare_knapsack(items, cap_w, cap_v)
         if res["ga_optimal"]:
             optimal_hits += 1
         total_gap_pct += res["gap_pct"]

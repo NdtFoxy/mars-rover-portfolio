@@ -4,14 +4,16 @@ from typing import List, Tuple, Dict, Any, Set
 from .genetic_map import generate_optimal_map
 
 # =====================================================================
-# SPECYFIKACJA MATERIAŁÓW (waga + wartość) -- podstawa problemu plecakowego
-# Każdy minerał ma WARTOŚĆ ($) oraz WAGĘ (kg). Łazik ma ograniczoną
-# pojemność plecaka (kg), więc nie zmieści wszystkiego -> problem plecakowy.
+# SPECYFIKACJA MATERIAŁÓW -- podstawa WIELOWYMIAROWEGO problemu plecakowego.
+# Każdy minerał ma WARTOŚĆ ($), WAGĘ (kg) oraz OBJĘTOŚĆ (l). Plecak ma DWA
+# limity: maksymalną wagę I maksymalną objętość -- trzeba zmieścić się w obu
+# naraz (multidimensional knapsack). Stąd ciekawe kompromisy: lód jest lekki,
+# ale objętościowy; tytan ciężki, lecz kompaktowy.
 # =====================================================================
 MATERIAL_SPECS: Dict[str, Dict[str, float]] = {
-    "Titanium":  {"value": 100.0, "weight": 8.0},  # ciężki, drogi
-    "Water Ice": {"value": 50.0,  "weight": 3.0},  # lekki, opłacalny gęstościowo
-    "Hematite":  {"value": 30.0,  "weight": 5.0},  # średni
+    "Titanium":  {"value": 100.0, "weight": 8.0, "volume": 2.0},  # ciężki, ale kompaktowy
+    "Water Ice": {"value": 50.0,  "weight": 3.0, "volume": 6.0},  # lekki, ale objętościowy
+    "Hematite":  {"value": 30.0,  "weight": 5.0, "volume": 4.0},  # średni w obu
 }
 MINERAL_TYPES: List[str] = list(MATERIAL_SPECS.keys())
 
@@ -33,14 +35,16 @@ class GameObject:
 class Mineral(GameObject):
     def __init__(self, name: str, x: int, y: int):
         super().__init__(name, x, y)
-        spec = MATERIAL_SPECS.get(name, {"value": 10.0, "weight": 1.0})
+        spec = MATERIAL_SPECS.get(name, {"value": 10.0, "weight": 1.0, "volume": 1.0})
         self.value: float = spec["value"]
         self.weight: float = spec["weight"]
+        self.volume: float = spec.get("volume", 1.0)
 
     def to_dict(self) -> Dict[str, Any]:
         data = super().to_dict()
         data["value"] = self.value
         data["weight"] = self.weight
+        data["volume"] = self.volume
         return data
 
 class ChargingStation(GameObject):

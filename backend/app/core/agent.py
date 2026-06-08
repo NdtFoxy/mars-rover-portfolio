@@ -8,9 +8,11 @@ from .search import astar_find_path, TERRAIN_COSTS, TURN_COST
 from .knapsack import items_from_minerals, solve_knapsack_ga, solve_knapsack_dp
 from . import shop
 
-# Najlżejszy minerał -- jeśli wolnego miejsca jest mniej, plecak jest "pełny".
+# Najlżejszy/najmniejszy minerał -- jeśli wolnego miejsca jest mniej, plecak jest "pełny".
 MIN_MINERAL_WEIGHT = min(spec["weight"] for spec in MATERIAL_SPECS.values())
-BASE_CAPACITY = 20.0       # bazowa pojemność plecaka (kg) -- limit problemu plecakowego
+MIN_MINERAL_VOLUME = min(spec["volume"] for spec in MATERIAL_SPECS.values())
+BASE_CAPACITY = 20.0       # bazowy limit WAGI plecaka (kg)
+BASE_VOLUME = 16.0         # bazowy limit OBJĘTOŚCI plecaka (l)
 BASE_MAX_BATTERY = 100.0   # bazowa pojemność baterii
 
 
@@ -29,11 +31,14 @@ class Agent:
         # --- Parametry modyfikowane przez sklep (ulepszenia) ---
         self.max_battery: float = BASE_MAX_BATTERY
         self.battery: float = self.max_battery
-        self.capacity: float = BASE_CAPACITY        # pojemność plecaka (kg)
+        self.capacity: float = BASE_CAPACITY        # limit WAGI plecaka (kg)
+        self.volume_capacity: float = BASE_VOLUME   # limit OBJĘTOŚCI plecaka (l)
         self.solar_bonus: float = 1.0               # mnożnik ładowania słonecznego
         self.motor_efficiency: float = 1.0          # mnożnik kosztu ruchu (mniej = taniej)
+        self.volume_factor: float = 1.0             # mnożnik objętości minerałów (kompresor: mniej=lepiej)
+        self.sell_bonus: float = 0.0                # premia do ceny sprzedaży (wiertło)
         self.upgrade_levels: Dict[str, int] = {
-            "backpack": 0, "battery": 0, "solar": 0, "motor": 0
+            "solar": 0, "compressor": 0, "cargo": 0, "motor": 0, "battery": 0, "drill": 0
         }
 
         self.inventory: List[str] = []
@@ -48,9 +53,13 @@ class Agent:
         self.last_purchase: str = ""
         self.charging_mode: bool = False            # histereza ładowania (ładuj do pełna)
 
-    # ---- Aktualna waga ładunku w plecaku ----
+    # ---- Aktualna waga / objętość ładunku w plecaku ----
     def current_weight(self) -> float:
         return sum(MATERIAL_SPECS.get(m, {"weight": 1.0})["weight"] for m in self.inventory)
+
+    def current_volume(self) -> float:
+        raw = sum(MATERIAL_SPECS.get(m, {"volume": 1.0})["volume"] for m in self.inventory)
+        return raw * self.volume_factor
 
     def turn_left(self):
         dirs = ['N', 'E', 'S', 'W']
@@ -91,13 +100,17 @@ class Agent:
         przestrzeni plecaka. Domyślnie algorytm genetyczny (GA).
         """
         active = [m for m in env.objects if m.is_active and m.type in MINERAL_TYPES]
-        remaining = self.capacity - self.current_weight()
+        rem_w = self.capacity - self.current_weight()
+        rem_v = self.volume_capacity - self.current_volume()
 
-        if not active or remaining < MIN_MINERAL_WEIGHT:
+        if not active or rem_w < MIN_MINERAL_WEIGHT or rem_v < MIN_MINERAL_VOLUME * self.volume_factor:
             self.mining_manifest = []
             return
 
         items = items_from_minerals(active)
+        # Kompresor zmniejsza efektywną objętość przenoszonych minerałów
+        for it in items:
+            it.volume *= self.volume_factor
 
         # POŁĄCZENIE PLECAKA ZE SKLEPEM: jeśli zbieramy na konkretne ulepszenie i
         # stać nas już na jego koszt pieniężny, podbijamy wartość potrzebnych
@@ -110,17 +123,17 @@ class Agent:
                     it.value += 120.0
 
         if method == "dp":
-            chosen, total_value, total_weight = solve_knapsack_dp(items, remaining)
+            chosen, total_value, total_weight, total_volume = solve_knapsack_dp(items, rem_w, rem_v)
         else:
-            chosen, total_value, total_weight = solve_knapsack_ga(items, remaining)
+            chosen, total_value, total_weight, total_volume = solve_knapsack_ga(items, rem_w, rem_v)
 
         self.mining_manifest = [it.ref for it in chosen if it.ref is not None]
         self.last_knapsack = {
             "method": method.upper(),
             "value": round(total_value, 1),
             "weight": round(total_weight, 1),
+            "volume": round(total_volume, 1),
             "count": len(chosen),
-            "capacity_left": round(remaining, 1),
         }
 
     def _plan_to_manifest(self, env: Environment) -> Optional[List[str]]:
@@ -132,10 +145,13 @@ class Agent:
         nie da się ani osiągnąć, ani podnieść.
         Zwraca plan ruchów ([] = już na miejscu) lub None, gdy nic nie zostało.
         """
-        remaining = self.capacity - self.current_weight()
+        rem_w = self.capacity - self.current_weight()
+        rem_v = self.volume_capacity - self.current_volume()
         self.mining_manifest = [
             m for m in self.mining_manifest
-            if getattr(m, "is_active", False) and getattr(m, "weight", 1.0) <= remaining
+            if getattr(m, "is_active", False)
+            and getattr(m, "weight", 1.0) <= rem_w
+            and getattr(m, "volume", 1.0) * self.volume_factor <= rem_v
         ]
         candidates = sorted(self.mining_manifest, key=lambda m: abs(self.x - m.x) + abs(self.y - m.y))
         for m in candidates:
@@ -203,9 +219,10 @@ class Agent:
             else:
                 decision = "CONTINUE_MINING"
 
-            # Plecak praktycznie pełny (waga) -> wracamy rozładować/sprzedać
-            remaining_cap = self.capacity - self.current_weight()
-            if remaining_cap < MIN_MINERAL_WEIGHT:
+            # Plecak praktycznie pełny (waga LUB objętość) -> wracamy rozładować/sprzedać
+            rem_w = self.capacity - self.current_weight()
+            rem_v = self.volume_capacity - self.current_volume()
+            if rem_w < MIN_MINERAL_WEIGHT or rem_v < MIN_MINERAL_VOLUME * self.volume_factor:
                 decision = "GO_TO_CHARGE"
                 self.mining_manifest = []
 
@@ -256,7 +273,8 @@ class Agent:
                 kept_counts[mat] = kept_counts.get(mat, 0) + 1
                 new_inventory.append(mat)
             else:
-                self.money += MATERIAL_SPECS.get(mat, {"value": 10.0})["value"]
+                base_val = MATERIAL_SPECS.get(mat, {"value": 10.0})["value"]
+                self.money += base_val * (1.0 + self.sell_bonus)   # premia wiertła
         self.inventory = new_inventory
         self.status = "UNLOADING"
 
@@ -295,8 +313,10 @@ class Agent:
                             obj.is_active = False
 
                 elif obj.type in MINERAL_TYPES:
-                    item_weight = getattr(obj, "weight", 1.0)
-                    if self.current_weight() + item_weight <= self.capacity:
+                    w = getattr(obj, "weight", 1.0)
+                    v = getattr(obj, "volume", 1.0) * self.volume_factor
+                    if (self.current_weight() + w <= self.capacity
+                            and self.current_volume() + v <= self.volume_capacity):
                         self.inventory.append(obj.type)
                         obj.is_active = False
 
@@ -356,7 +376,10 @@ class Agent:
         # Cechy znormalizowane, by były niezależne od ulepszeń sklepowych:
         # bateria jako % pojemności, plecak jako stopień zapełnienia (0..1).
         battery_pct = (self.battery / self.max_battery * 100.0) if self.max_battery > 0 else 0.0
-        fill_ratio = (self.current_weight() / self.capacity) if self.capacity > 0 else 1.0
+        # Zapełnienie = bardziej wypełniony z dwóch wymiarów (waga / objętość)
+        w_fill = (self.current_weight() / self.capacity) if self.capacity > 0 else 1.0
+        v_fill = (self.current_volume() / self.volume_capacity) if self.volume_capacity > 0 else 1.0
+        fill_ratio = max(w_fill, v_fill)
 
         raw_features = np.array([[
             battery_pct,
@@ -441,6 +464,8 @@ class Agent:
             "inventory": self.inventory,
             "capacity": round(self.capacity, 2),
             "current_weight": round(self.current_weight(), 2),
+            "volume_capacity": round(self.volume_capacity, 2),
+            "current_volume": round(self.current_volume(), 2),
             "money": round(self.money, 2),
             "upgrade_levels": self.upgrade_levels,
             "nn_thought": nn_thought_str,

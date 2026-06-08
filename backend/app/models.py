@@ -8,8 +8,10 @@ class AgentState(BaseModel):
     battery: float
     max_battery: float = 100.0
     inventory: List[str]
-    capacity: float = 20.0          # pojemność plecaka (kg) -- limit problemu plecakowego
+    capacity: float = 20.0          # limit WAGI plecaka (kg)
     current_weight: float = 0.0     # aktualna waga ładunku (kg)
+    volume_capacity: float = 16.0   # limit OBJĘTOŚCI plecaka (l)
+    current_volume: float = 0.0     # aktualna objętość ładunku (l)
     status: str
     current_plan: List[str]
     money: float = 0.0
@@ -31,6 +33,7 @@ class GameObjectState(BaseModel):
     energy_pool: Optional[float] = None
     value: Optional[float] = None    # wartość minerału ($)
     weight: Optional[float] = None   # waga minerału (kg)
+    volume: Optional[float] = None   # objętość minerału (l)
 
 class ShopItemState(BaseModel):
     id: str
