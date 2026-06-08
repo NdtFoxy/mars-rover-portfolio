@@ -1,10 +1,8 @@
 // src/api/client.ts
 import axios from 'axios';
-import type { GameState } from '../types/index';
+import type { GameState, BuyResult } from '../types/index';
 
-// Создаем "экземпляр" axios с базовым URL твоего сервера.
-// Это удобно, чтобы не писать 'http://localhost:8000' каждый раз.
-// Убедись, что порт 8000 совпадает с тем, на котором запущен твой backend.
+// Egzemplarz axios z bazowym URL serwera FastAPI.
 const apiClient = axios.create({
   baseURL: 'http://localhost:8000',
   headers: {
@@ -12,26 +10,32 @@ const apiClient = axios.create({
   }
 });
 
-/**
- * Функция для получения начального состояния симуляции.
- * Отправляет GET-запрос на эндпоинт /state.
- * @returns Promise, который разрешается с объектом GameState.
- */
+/** GET /state -- pełny stan symulacji (agent, mapa, obiekty, sklep). */
 export const fetchInitialState = async (): Promise<GameState> => {
-  // Отправляем GET-запрос и ждем ответ
   const response = await apiClient.get<GameState>('/state');
-  // Возвращаем данные из ответа
   return response.data;
 };
 
-/**
- * Функция для выполнения одного шага симуляции.
- * Отправляет POST-запрос на эндпоинт /step.
- * @returns Promise, который разрешается с НОВЫМ объектом GameState после хода.
- */
+/** POST /step -- jeden krok symulacji. */
 export const makeStep = async (): Promise<GameState> => {
-  // Отправляем POST-запрос и ждем ответ
   const response = await apiClient.post<GameState>('/step');
-  // Возвращаем обновленные данные из ответа
+  return response.data;
+};
+
+/** POST /step_multiple/{n} -- wykonaj n kroków na raz. */
+export const makeSteps = async (count: number): Promise<GameState> => {
+  const response = await apiClient.post<GameState>(`/step_multiple/${count}`);
+  return response.data;
+};
+
+/** POST /restart -- restart symulacji (nowy łazik, ten sam typ mapy). */
+export const restartSim = async (): Promise<GameState> => {
+  const response = await apiClient.post<GameState>('/restart');
+  return response.data;
+};
+
+/** POST /shop/buy/{id} -- ręczny zakup ulepszenia (pieniądze + materiały). */
+export const buyUpgrade = async (upgradeId: string): Promise<BuyResult> => {
+  const response = await apiClient.post<BuyResult>(`/shop/buy/${upgradeId}`);
   return response.data;
 };

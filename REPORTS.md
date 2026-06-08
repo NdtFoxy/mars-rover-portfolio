@@ -147,3 +147,50 @@ This document tracks the individual contributions of team members for the "Auton
    - Updated the autonomous agent logic to sample and classify visual frames on-the-fly depending on the tile the rover occupies.
    - Maintained full backward compatibility with the existing API communication protocol to ensure seamless integration with the Unreal Engine 5 frontend.
    - Verified training convergence (loss reduced from 0.22 to 0.13).
+
+---
+
+## 📝 Assignment 4: Genetic Algorithms (Problem Plecakowy)
+**Status:** Completed ✅
+
+> **Wymagania zadania:** zastosowanie algorytmu genetycznego do problemu pojawiającego się w projekcie; uwzględnienie operacji **krzyżowania** i **mutacji**; wybór rodziców zgodnie z **regułą ruletki**.
+
+### 🛠 Mykyta's Contributions
+
+*   **Wybór problemu — Problem Plecakowy (0/1 Knapsack):**
+    *   Każdy minerał otrzymał **wagę (kg)** i **wartość ($)** (`MATERIAL_SPECS` w `environment.py`): Tytan (\$100 / 8 kg), Lód Wodny (\$50 / 3 kg), Hematyt (\$30 / 5 kg).
+    *   Łazik ma ograniczoną **pojemność plecaka** (bazowo 20 kg). Spośród rozsianych minerałów musi wybrać podzbiór maksymalizujący wartość bez przekroczenia limitu wagi — to klasyczny problem plecakowy pojawiający się wprost w mechanice gry.
+
+*   **Algorytm Genetyczny (`core/knapsack.py` → `KnapsackGA`):**
+    *   **Reprezentacja:** osobnik = wektor bitów (gen `1` ⇒ minerał spakowany do plecaka).
+    *   **Funkcja celu:** suma wartości spakowanych minerałów; przekroczenie pojemności jest karane (rozwiązania niedopuszczalne mają niższy fitness, zawsze > 0, aby ruletka działała).
+    *   ✔ **Selekcja ruletkowa** (`roulette_wheel_selection`) — szansa wyboru rodzica proporcjonalna do fitness *(wymóg 3)*.
+    *   ✔ **Krzyżowanie jednopunktowe** wektorów genów *(wymóg 2)*.
+    *   ✔ **Mutacja** — odwracanie bitów z zadanym prawdopodobieństwem *(wymóg 2)*.
+    *   **Elityzm** — najlepsze osobniki przechodzą bez zmian do kolejnego pokolenia. Struktura spójna z istniejącym `genetic_map.py`.
+
+*   **Walidacja jakości GA (porównanie z Programowaniem Dynamicznym):**
+    *   Zaimplementowano dokładny solver DP `O(n·W)` (`solve_knapsack_dp`) jako wzorzec optymalności oraz eksperyment porównawczy (`compare_knapsack`, `run_knapsack_experiment`).
+
+    | Benchmark | GA = optimum | Średnia luka (gap) | Czas GA | Czas DP |
+    |---|---|---|---|---|
+    | Minerały projektu (n=12, W=20) | 30/30 (100%) | 0.00% | ~18 ms | ~0.02 ms |
+    | Trudne losowe (n=18, W=30) | 29/30 (97%) | 0.06% | ~20 ms | ~0.04 ms |
+
+    *   **Wniosek:** algorytm genetyczny praktycznie zawsze znajduje rozwiązanie optymalne (lub odległe od optimum o ułamek procenta), co potwierdza poprawność implementacji operatorów ewolucyjnych.
+
+*   **Integracja z agentem oraz sklepem (pętla ekonomiczna):**
+    *   Łazik planuje trasy wydobywcze rozwiązując problem plecakowy GA (`_plan_mining_manifest`); pole `last_knapsack` w `/state` pokazuje aktualny plan (liczba sztuk, wartość, waga).
+    *   **Sklep z ulepszeniami** (`core/shop.py`): ulepszenia kupowane za **pieniądze + materiały** (np. plecak: `$120 + 2× Hematyt`). Nowe endpointy `/shop` i `/shop/buy/{id}`.
+    *   Ulepszenie pojemności plecaka **bezpośrednio zwiększa rozmiar problemu plecakowego** (limit `W`), domykając pętlę: *wydobycie → sprzedaż → ulepszenie → większy plecak → trudniejszy problem plecakowy*.
+    *   Materiały potrzebne na ulepszenie dostają premię w funkcji celu GA — łazik dynamicznie zmienia priorytety wydobycia (łączy plecak ze sklepem).
+    *   Endpoint diagnostyczny **`/knapsack`** zwraca porównanie GA vs DP na bieżącej mapie.
+    *   Dodano twardy bezpiecznik energetyczny (`_needs_emergency_charge` + histereza ładowania), dzięki któremu łazik przeżywa wystarczająco długo, by zademonstrować całą pętlę ekonomiczną.
+
+*   **Sieć decyzyjna w wersji zunifikowanej (`main`):**
+    *   W `main` decyzje MINING/CHARGE podejmuje multimodalna sieć CNN + MLP (obraz UE5 + 7 cech telemetrii); siódmą cechą tabularną jest stopień zapełnienia plecaka (`inventory_fill_ratio`), spójny z ekonomią plecaka i sklepu.
+    *   Dostępna jest też lekka wersja bez kamery (tylko 7 cech telemetrii) jako tag `wersja-algorytm-genetyczny` — do prezentacji samego algorytmu genetycznego.
+
+*   **Zarządzanie wersjami projektu (Git) oraz prezentacja:**
+    *   Wersje utrzymywane jako gałęzie/tagi: `wersja-algorytm-genetyczny` (plecak/sklep) oraz `wersja-siec-cnn` (wariant z kamerą CNN). Umożliwia to oddzielną prezentację każdego zadania prowadzącemu.
+    *   Skrypt `demo_genetyczny.py` — prezentacja algorytmu genetycznego (zbiór danych, operatory ewolucyjne, decyzja GA vs DP) krok po kroku.

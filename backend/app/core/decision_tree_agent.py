@@ -21,7 +21,8 @@ def generate_dataset(num_samples: int = 500) -> pd.DataFrame:
         x, y = env._get_free_sand_position()
         agent = Agent(x, y)
         agent.battery = random.uniform(5.0, 100.0)
-        agent.inventory = ["Titanium"] * random.randint(0, 8)
+        # Losowy stopień zapełnienia plecaka (0 = pusty, 1 = pełny wagowo)
+        inventory_fill_ratio = round(random.uniform(0.0, 1.0), 3)
         
         # Atrybut 1: Poziom baterii
         battery_level = agent.battery
@@ -46,10 +47,9 @@ def generate_dataset(num_samples: int = 500) -> pd.DataFrame:
         active_stations = [s for s in env.objects if s.type == "ChargingStation" and s.is_active]
         dist_station = min([abs(agent.x - s.x) + abs(agent.y - s.y) for s in active_stations]) if active_stations else 100
         
-        # Atrybut 8: Zajętość ekwipunku
-        inventory_size = len(agent.inventory)
-        
-        if battery_level < 20: 
+        # Atrybut 8: Stopień zapełnienia plecaka (0..1) -- patrz problem plecakowy
+
+        if battery_level < 20:
             # 1. Krytyczny poziom baterii: ignorujemy wszystko, wracamy się ładować
             decision = "GO_TO_CHARGE"
             
@@ -63,8 +63,8 @@ def generate_dataset(num_samples: int = 500) -> pd.DataFrame:
             # Bateria sama się nie naładuje (panele nie działają), idziemy do stacji.
             decision = "GO_TO_CHARGE"
             
-        elif inventory_size >= 8: 
-            # 4. EKWIPUNEK: Pełny ekwipunek - idziemy zostawić surowce (do stacji)
+        elif inventory_fill_ratio >= 0.95:
+            # 4. EKWIPUNEK: Plecak praktycznie pełny - idziemy zostawić surowce (do stacji)
             decision = "GO_TO_CHARGE"
             
         elif dist_mineral > 15 and battery_level < 70 and solar_efficiency < 0.5:
@@ -84,7 +84,7 @@ def generate_dataset(num_samples: int = 500) -> pd.DataFrame:
             "terrain_type": terrain_type,
             "dist_to_mineral": dist_mineral,
             "dist_to_station": dist_station,
-            "inventory_size": inventory_size,
+            "inventory_fill_ratio": inventory_fill_ratio,
             "target_decision": decision
         })
         
@@ -102,9 +102,9 @@ def run_decision_tree_experiment():
     
     # Rozdzielenie na zbiór atrybutów opisujących (X) i decyzję (y)
     feature_names = [
-        "battery_level", "time_of_day", "solar_efficiency", 
-        "weather_multiplier", "terrain_type", "dist_to_mineral", 
-        "dist_to_station", "inventory_size"
+        "battery_level", "time_of_day", "solar_efficiency",
+        "weather_multiplier", "terrain_type", "dist_to_mineral",
+        "dist_to_station", "inventory_fill_ratio"
     ]
     X = df[feature_names]
     y = df["target_decision"]
