@@ -56,3 +56,54 @@ python3 ../../demo_genetyczny.py
 - **Na czym polega „wielowymiarowość”?** Plecak ma **dwa** niezależne ograniczenia (waga i objętość),
   więc pojawiają się realne kompromisy: lód jest lekki, lecz objętościowy; tytan ciężki, lecz kompaktowy.
 - **Elityzm — po co?** Chroni najlepsze znalezione rozwiązanie przed utratą w kolejnym pokoleniu.
+
+## Obrona — rozszerzony zestaw
+
+### Co to jest GA i DP (w jednym zdaniu)
+- **GA (algorytm genetyczny)** — metoda **przybliżona**, naśladująca ewolucję: trzyma populację
+  losowych rozwiązań i ulepsza je przez pokolenia (selekcja → krzyżowanie → mutacja). Szybko
+  daje bardzo dobre wyniki, ale **bez gwarancji** trafienia w idealne optimum.
+- **DP (programowanie dynamiczne)** — metoda **dokładna**: buduje tablicę najlepszych wartości
+  dla kolejnych limitów wagi i objętości i **gwarantuje optimum** `O(n·W·V)`. Wolniejsza przy
+  dużych limitach, dlatego w grze używamy GA, a DP traktujemy jako wzorzec.
+
+### Pełna pętla GA (do narysowania na kartce)
+```
+populacja losowa
+   │
+   ▼
+[ ocena fitness ] ─► [ sortowanie ] ─► [ elityzm: 2 najlepsze ]
+   ▲                                          │
+   │                                          ▼
+   │                          [ ruletka ] ─► [ krzyżowanie ] ─► [ mutacja ]
+   │                                          │
+   └──────────────  nowe pokolenie  ◄─────────┘
+        (powtórz N razy → najlepszy osobnik = wybór minerałów)
+```
+
+### Pytania podchwytliwe (z odpowiedziami)
+- **Czy GA zawsze znajdzie najlepsze rozwiązanie?** Nie — to heurystyka. W praktyce trafia w
+  optimum lub jest o ułamek procenta gorszy; udowadnia to porównanie z DP (u nas 8/8, gap 0.00%).
+- **Co, jeśli zwiększysz mutację do 0.5?** Algorytm zacznie błądzić losowo — mutacja zniszczy dobre
+  geny, zbieżność się załamie. Dlatego trzymamy małe `0.05`.
+- **Co, jeśli usuniesz elityzm?** Najlepsze rozwiązanie może zniknąć w kolejnym pokoleniu —
+  zbieżność jest wolniejsza i mniej stabilna.
+- **Co, jeśli funkcja celu może być 0 lub ujemna?** Selekcja ruletkowa dzieli przez sumę fitness —
+  dlatego trzymamy fitness > 0 (minimum 0.1) i karzemy przekroczenia zamiast zerować.
+- **Jak naprawiasz rozwiązanie niedopuszczalne?** Kara w fitness + zachłanna naprawa: usuwam
+  minerały o najgorszym stosunku wartość/(waga+objętość), aż zmieszczę się w OBU limitach.
+- **Jaka jest złożoność GA vs DP?** GA ≈ `O(pokolenia × populacja × n)` (niezależna od limitów),
+  DP `O(n × W × V)` (rośnie z limitami). To kluczowa różnica skalowania.
+- **Pokaż operatory w kodzie.** `genetyczny.py`: `roulette_wheel_selection`, `crossover`, `mutate`,
+  pętla `run` (tam elityzm i tworzenie nowego pokolenia).
+
+### Skrypt obrony (otwarcie, do zapamiętania)
+> „Zastosowałem algorytm genetyczny do **wielowymiarowego problemu plecakowego**: łazik ma plecak
+> z limitem wagi i objętości i musi wybrać minerały maksymalizujące wartość. Osobnik to wektor
+> bitów, użyłem **selekcji ruletkowej, krzyżowania jednopunktowego, mutacji bitowej i elityzmu**.
+> Poprawność sprawdziłem **dokładnym DP** jako wzorcem optymalności — GA trafia w optimum.
+> Algorytm działa też na żywo: napędza wybór minerałów i pętlę ekonomiczną (sprzedaż → sklep → większy plecak).”
+
+### Demonstracja krok po kroku
+`python3 ../../demo_genetyczny.py` — pokazuje operatory ewolucyjne na żywo (populacja, fitness,
+selekcja, krzyżowanie, mutacja) oraz decyzję GA vs DP, idealne gdy prowadzący poprosi „pokaż działanie”.
