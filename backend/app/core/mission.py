@@ -18,8 +18,8 @@ _DEFAULT: Dict[str, Any] = {
     "selected_task": None,
     "project_number": None,
     "task_title": "Tryb domyślny (pełna symulacja)",
-    "algorithm": "A* + sieć CNN + algorytm genetyczny",
-    "algorithm_description": "Łazik działa w pełnym trybie gry.",
+    "algorithm": "A* + drzewo decyzyjne + algorytm genetyczny",
+    "algorithm_description": "Łazik działa w pełnym trybie gry; CNN jest używana tylko w zadaniu 6.",
     "source_pdf": None,
 }
 

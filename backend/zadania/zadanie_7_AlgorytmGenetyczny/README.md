@@ -9,8 +9,9 @@
 
 ## Realizacja
 - Problem: **wielowymiarowy problem plecakowy** (waga + objętość) — łazik wybiera minerały do plecaka.
-- GA: `app/core/knapsack.py` → `KnapsackGA` (selekcja ruletkowa + krzyżowanie jednopunktowe + mutacja bitowa + elityzm).
+- GA: `genetyczny.py` → `KnapsackGA` (selekcja ruletkowa + krzyżowanie jednopunktowe + mutacja bitowa + elityzm).
 - Walidacja: dokładny solver **DP** (`solve_knapsack_dp`) jako wzorzec optymalności (GA = DP).
+- `app/core/agent.py` importuje ten moduł i używa GA do wyboru minerałów w działającej symulacji.
 
 ## Pliki
 - `zbior/instancja.txt` — dane wejściowe (minerały: waga / objętość / wartość + limity)

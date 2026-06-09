@@ -1,12 +1,11 @@
 # -*- coding: utf-8 -*-
-"""Config hot-reload scaffold for the Ares neural mission.
+"""Obserwator `mission_config.json` do przeładowania aktywnego zadania.
+Наблюдатель `mission_config.json` для обновления активного задания.
 
-This file is intentionally standalone for now. Later it can be imported from
-run.py or app.api and connected to the real neural-network task switcher.
-
-Examples:
-    python hot_reload.py --once
-    python hot_reload.py --watch
+Moduł działa samodzielnie, ale może też być podpięty do `run.py` albo
+`app.api`. Dzięki temu wybór z `navigate.py` można odświeżyć bez restartu.
+Модуль работает автономnie, ale może być też podpięty do `run.py` lub
+`app.api`. Dzięki temu wybór z `navigate.py` można odświeżyć bez restartu.
 """
 
 from __future__ import annotations
@@ -23,7 +22,8 @@ from pathlib import Path
 from typing import Callable
 
 
-# Конфиг создается navigate.py и лежит рядом с run.py.
+# Konfiguracja jest tworzona przez `navigate.py` i leży obok `run.py`.
+# Конфигурацию tworzy `navigate.py`, a plik leży obok `run.py`.
 DEFAULT_CONFIG_PATH = Path(__file__).with_name("mission_config.json")
 ALT_R_KEYS = {"alt+r"}
 
@@ -55,14 +55,15 @@ class RestartEvent:
 
 
 def read_json_config(path: Path) -> dict | None:
-    # Отсутствующий конфиг не ошибка: сервер может работать в default режиме.
+    # Brak pliku konfiguracyjnego nie jest błędem: serwer może działać w trybie domyślnym.
+    # Отсутствие pliku konfiguracyjnego nie jest błędem: serwer może działać w trybie domyślnym.
     if not path.exists():
         return None
 
     try:
         return json.loads(path.read_text(encoding="utf-8-sig"))
     except json.JSONDecodeError as exc:
-        raise ValueError(f"Invalid config JSON in {path}: {exc}") from exc
+        raise ValueError(f"Nieprawidłowy JSON konfiguracyjny w {path}: {exc}") from exc
 
 
 def make_snapshot(path: Path) -> ConfigSnapshot:
@@ -81,7 +82,8 @@ def make_snapshot(path: Path) -> ConfigSnapshot:
 
 
 def describe_change(previous: ConfigSnapshot, current: ConfigSnapshot) -> str:
-    # Причина нужна для логов: потом проще понять, что именно поменял navigate.py.
+    # Powód zapisujemy do logów, żeby łatwiej było ustalić, co zmienił navigate.py.
+    # Powód zapisujemy w logach, żeby łatwiej było zobaczyć, co zmienił navigate.py.
     if not previous.exists and current.exists:
         return "created"
     if previous.exists and not current.exists:
@@ -127,7 +129,9 @@ class MissionConfigWatcher:
         on_restart: Callable[[RestartEvent], None],
         restart_command: str | None = None,
     ) -> None:
-        # Бесконечный цикл пока простой polling; later можно заменить на watchdog.
+        # Na razie prosty polling.
+        # Сейчас zwykłe odpytywanie w pętli.
+        # Później можно to podmienić na watchdog.
         while True:
             event = self.poll()
             if event is not None:
@@ -145,7 +149,9 @@ class MissionConfigWatcher:
 
 
 def read_hotkey() -> str | None:
-    # Неблокирующее чтение клавиатуры: Alt+R работает как ESC+r или Win32 scan-code.
+    # Czytanie klawiatury bez blokowania.
+    # Неблокирующее czytanie klawiatury.
+    # Alt+R działa jako ESC+r albo kod Windows.
     if os.name == "nt":
         import msvcrt
 
@@ -186,7 +192,9 @@ def read_hotkey() -> str | None:
 
 
 def on_reload(event: HotReloadEvent) -> None:
-    # TODO: здесь потом подключить обновление активного AI-задания без перезапуска.
+    # Tu logujemy zmianę aktywnego zadania.
+    # Здесь logujemy zmianę aktywnego zadania.
+    # Później можно dodać automatyczne odświeżenie stanu.
     task = (event.payload or {}).get("selected_task", "none")
     title = (event.payload or {}).get("task_title", "No task")
     print(f"[HOT-RELOAD] {event.reason}: {event.path}")
@@ -194,17 +202,19 @@ def on_reload(event: HotReloadEvent) -> None:
 
 
 def on_restart(event: RestartEvent) -> None:
-    # TODO: сюда потом подключить настоящий restart AI pipeline или uvicorn process.
+    # Tu uruchamiamy restart.
+    # Tutaj uruchamiamy restart.
+    # Później можно podpiąć pełny restart procesu `uvicorn`.
     task = (event.payload or {}).get("selected_task", "none")
     title = (event.payload or {}).get("task_title", "No task")
-    print("[HOT-RELOAD] Alt+R restart requested")
+    print("[HOT-RELOAD] zgłoszono restart przez Alt+R")
     print(f"[HOT-RELOAD] selected_task={task} title={title}")
 
     if event.command is None:
-        print("[HOT-RELOAD] no restart command configured; hook executed only")
+        print("[HOT-RELOAD] nie ustawiono komendy restartu; wykonano tylko hook")
         return
 
-    print(f"[HOT-RELOAD] running restart command: {event.command}")
+    print(f"[HOT-RELOAD] uruchamianie komendy restartu: {event.command}")
     subprocess.Popen(event.command, shell=True)
 
 
@@ -212,7 +222,7 @@ def print_once(config_path: Path) -> None:
     snapshot = make_snapshot(config_path)
     payload = read_json_config(config_path)
 
-    print("[HOT-RELOAD] config probe")
+    print("[HOT-RELOAD] podgląd konfiguracji")
     print(f"path={config_path}")
     print(f"exists={snapshot.exists}")
     if snapshot.exists:
@@ -222,12 +232,12 @@ def print_once(config_path: Path) -> None:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Mission config hot-reload scaffold.")
+    parser = argparse.ArgumentParser(description="Narzędzie do przeładowania konfiguracji misji / Инструмент перезагрузки конфигурации миссии.")
     parser.add_argument("--config-path", type=Path, default=DEFAULT_CONFIG_PATH)
-    parser.add_argument("--interval", type=float, default=1.0, help="Polling interval in seconds.")
-    parser.add_argument("--once", action="store_true", help="Print current config state and exit.")
-    parser.add_argument("--watch", action="store_true", help="Watch config changes forever.")
-    parser.add_argument("--restart-command", help="Optional shell command executed after Alt+R.")
+    parser.add_argument("--interval", type=float, default=1.0, help="Odstęp odpytywania w sekundach / Интервал опроса в секундах.")
+    parser.add_argument("--once", action="store_true", help="Pokaż stan konfiguracji i zakończ / Показать состояние конфигурации и выйти.")
+    parser.add_argument("--watch", action="store_true", help="Obserwuj zmiany konfiguracji w pętli / Наблюдать изменения конфигурации в цикле.")
+    parser.add_argument("--restart-command", help="Opcjonalna komenda powłoki po Alt+R / Необязательная команда оболочки после Alt+R.")
     return parser.parse_args()
 
 
@@ -240,12 +250,14 @@ def main() -> int:
 
     if args.watch:
         watcher = MissionConfigWatcher(args.config_path, args.interval)
-        print(f"[HOT-RELOAD] watching {args.config_path} every {args.interval:.2f}s")
-        print("[HOT-RELOAD] press Alt+R to request restart")
+        print(f"[HOT-RELOAD] obserwowanie {args.config_path} co {args.interval:.2f}s")
+        print("[HOT-RELOAD] naciśnij Alt+R, aby poprosić o restart")
         watcher.watch_forever(on_reload, on_restart, restart_command=args.restart_command)
         return 0
 
-    print("Use --once to probe config or --watch to start the scaffold watcher. Alt+R works in --watch mode.")
+    print("Użyj `--once`, aby podejrzeć konfigurację, albo `--watch`, aby uruchomić obserwator.")
+    print("Используй `--once`, чтобы посмотреть конфигурацию, или `--watch`, чтобы запустить наблюдатель.")
+    print("Alt+R działa w trybie `--watch` / Alt+R działa w trybie `--watch`.")
     return 0
 
 

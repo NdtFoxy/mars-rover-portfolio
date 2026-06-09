@@ -5,7 +5,7 @@ Uruchom:  python3 uruchom.py     (UWAGA: trenuje sieć, ~20-40 s)
 Generuje: zbior/rover_training_data.csv (zbiór uczący >=1000/klasę) + zbior/info.txt
           decyzja/nn_raport.txt (decyzje sieci na scenariuszach testowych).
 """
-import sys, os, shutil
+import sys, os
 HERE = os.path.dirname(os.path.abspath(__file__))
 BACKEND = os.path.abspath(os.path.join(HERE, "..", ".."))
 sys.path.insert(0, BACKEND)
@@ -15,20 +15,17 @@ DECYZJA = os.path.join(HERE, "decyzja")
 os.makedirs(ZBIOR, exist_ok=True)
 os.makedirs(DECYZJA, exist_ok=True)
 
-print("[Zadanie 6] Trenuje siec CNN+MLP (to potrwa chwile)...")
-import app.api as api  # import trenuje siec i zapisuje rover_training_data.csv + nn_model_report.txt
+from zadania.zadanie_6_SiecNeuronowa.siec import train_cnn
 
-# Skopiuj artefakty do folderu zadania
-src_csv = os.path.join(BACKEND, "rover_training_data.csv")
-src_rep = os.path.join(BACKEND, "nn_model_report.txt")
-if os.path.exists(src_csv):
-    shutil.copy(src_csv, os.path.join(ZBIOR, "rover_training_data.csv"))
-if os.path.exists(src_rep):
-    shutil.copy(src_rep, os.path.join(DECYZJA, "nn_raport.txt"))
+dataset_path = os.path.join(ZBIOR, "rover_training_data.csv")
+report_path = os.path.join(DECYZJA, "nn_raport.txt")
+
+print("[Zadanie 6] Trenuje siec CNN+MLP (to potrwa chwile)...")
+train_cnn(data_path=dataset_path, report_path=report_path)
 
 # Policz licznosc klas (wymog: >= 1000 na klase)
 import pandas as pd
-df = pd.read_csv(os.path.join(ZBIOR, "rover_training_data.csv"))
+df = pd.read_csv(dataset_path)
 counts = df["target_decision"].value_counts().to_dict()
 with open(os.path.join(ZBIOR, "info.txt"), "w", encoding="utf-8") as f:
     f.write("ZBIOR UCZACY (Zadanie 6 - siec neuronowa)\n")

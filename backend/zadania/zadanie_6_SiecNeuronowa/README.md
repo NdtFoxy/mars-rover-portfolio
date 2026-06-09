@@ -8,9 +8,10 @@
 3. Agent **wykorzystuje wyuczoną sieć** w procesie podejmowania decyzji.
 
 ## Realizacja
-- Sieć: `app/api.py` → `MissionControlCNN` (multimodalna: gałąź **CNN** dla obrazu z kamery UE5 + gałąź **MLP** dla 7 cech telemetrii, fuzja cech → decyzja).
+- Sieć: `siec.py` → `MissionControlCNN` i `train_cnn` (multimodalna: gałąź **CNN** dla obrazu z kamery UE5 + gałąź **MLP** dla 7 cech telemetrii, fuzja cech → decyzja).
 - Zbiór uczący: `generate_balanced_dataset(1000)` (≥1000 na klasę: `GO_TO_CHARGE`, `CONTINUE_MINING`) + zdjęcia UE5 z `backend/ue5_photos/`.
 - Decyzja: agent (`agent.decide_next_macro_action`) używa wyuczonej sieci na żywo.
+- API wywołuje `train_cnn()` leniwie tylko wtedy, gdy aktywne jest zadanie 6.
 
 ## Pliki
 - `zbior/rover_training_data.csv` — zbiór uczący

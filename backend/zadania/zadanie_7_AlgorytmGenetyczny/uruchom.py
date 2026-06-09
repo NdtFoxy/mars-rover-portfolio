@@ -17,7 +17,7 @@ os.makedirs(DECYZJA, exist_ok=True)
 
 import random
 from app.core.environment import MATERIAL_SPECS
-from app.core.knapsack import KnapsackItem, compare_knapsack
+from zadania.zadanie_7_AlgorytmGenetyczny.genetyczny import KnapsackItem, compare_knapsack
 
 random.seed(42)
 CAP_W, CAP_V = 20.0, 16.0

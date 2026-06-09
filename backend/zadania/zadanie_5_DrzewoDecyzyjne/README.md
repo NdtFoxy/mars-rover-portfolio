@@ -10,9 +10,11 @@
 5. Opcja **podglądu wyuczonego drzewa** (logi lub plik z grafiką).
 
 ## Realizacja
-- Zbiór uczący: `app/core/decision_tree_agent.py` → `generate_dataset` (telemetria łazika → decyzja `GO_TO_CHARGE` / `CONTINUE_MINING`).
+- Implementacja: `drzewo.py` → `generate_dataset`, `train_tree`, `predict_with_tree`.
+- Zbiór uczący: telemetria łazika → decyzja `GO_TO_CHARGE` / `CONTINUE_MINING`.
 - Drzewo: `DecisionTreeClassifier(criterion="entropy")` → wybór atrybutu wg przyrostu informacji (ID3).
 - 8 atrybutów: bateria, pora dnia, słońce, pogoda, teren, dystans do minerału, dystans do stacji, zapełnienie plecaka.
+- Serwer zawsze uczy to drzewo przy starcie i używa go jako bazowego mózgu, gdy zadanie 6 nie jest aktywne.
 
 ## Pliki
 - `zbior/rover_training_data.csv` — zbiór uczący (300 przykładów, 8 atrybutów)

@@ -6,12 +6,12 @@
 
                  precision    recall  f1-score   support
 
-   GO_TO_CHARGE       0.96      0.94      0.95       200
-CONTINUE_MINING       0.95      0.96      0.95       200
+   GO_TO_CHARGE       0.96      0.92      0.94       200
+CONTINUE_MINING       0.92      0.96      0.94       200
 
-       accuracy                           0.95       400
-      macro avg       0.95      0.95      0.95       400
-   weighted avg       0.95      0.95      0.95       400
+       accuracy                           0.94       400
+      macro avg       0.94      0.94      0.94       400
+   weighted avg       0.94      0.94      0.94       400
 
 
 ================================================================================
@@ -31,7 +31,7 @@ Scenariusz 3: Średnia bateria (40%), stacja blisko -> Bezpieczna regeneracja
 --------------------------------------------------
 Scenariusz 4: Bateria 80%, pełny plecak -> Powrót do bazy i sprzedaż
   Wejście: Bat=80.0%, DystStacja=10.0, Plecak=97%, Środowisko: BASE
-  Decyzja Sieci: GO_TO_CHARGE
+  Decyzja Sieci: CONTINUE_MINING
 --------------------------------------------------
 
 [KONIEC RAPORTU]

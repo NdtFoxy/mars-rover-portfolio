@@ -13,11 +13,13 @@ brak zakleszczeń (sitting) oraz regenerację stacji ładujących.
 import random
 import traceback
 
+import app.core.agent as agent_module
 from app.core.environment import Environment, Mineral, ChargingStation, MATERIAL_SPECS, MINERAL_TYPES
 from app.core.agent import Agent, MIN_MINERAL_WEIGHT, MIN_MINERAL_VOLUME
-from app.core.knapsack import (
+from zadania.zadanie_7_AlgorytmGenetyczny.genetyczny import (
     KnapsackItem, solve_knapsack_dp, solve_knapsack_ga, compare_knapsack,
 )
+from zadania.zadanie_5_DrzewoDecyzyjne.drzewo import train_tree
 from app.core import shop
 
 PROJECT_ITEMS = lambda n: [
@@ -235,11 +237,56 @@ def test_pickup_respects_both_limits():
 
 
 # =====================================================================
+# DRZEWO DECYZYJNE -- bazowy mózg bez treningu CNN
+# =====================================================================
+def test_decision_tree_integration():
+    random.seed(42)
+    env = Environment(20, 15)
+    sx, sy = env.reset()
+    a = Agent(sx, sy)
+    a.battery = 5.0
+    tree_clf, _ = train_tree(300)
+
+    decision = a.decide_with_tree(env, tree_clf)
+
+    assert decision == "GO_TO_CHARGE", f"drzewo zignorowało krytyczną baterię: {decision}"
+    assert a.decision_system == "DECISION TREE"
+    confidence_sum = a.nn_confidence["MINING"] + a.nn_confidence["CHARGE"]
+    assert abs(confidence_sum - 100.0) < 1e-6, f"błędne prawdopodobieństwa: {confidence_sum}"
+
+
+def test_agent_selects_search_module_by_task():
+    env = Environment(20, 15)
+    a = Agent(0, 0)
+    original_task = agent_module.get_active_task
+    original_bfs = agent_module.bfs_find_path
+    original_astar = agent_module.astar_find_path
+    try:
+        agent_module.bfs_find_path = lambda *args, **kwargs: ["BFS"]
+        agent_module.astar_find_path = lambda *args, **kwargs: ["ASTAR"]
+
+        agent_module.get_active_task = lambda: {
+            "selected_task": "project-3-uninformed-search"
+        }
+        assert a._find_path(1, 1, env) == ["BFS"]
+
+        agent_module.get_active_task = lambda: {
+            "selected_task": "project-4-informed-search"
+        }
+        assert a._find_path(1, 1, env) == ["ASTAR"]
+    finally:
+        agent_module.get_active_task = original_task
+        agent_module.bfs_find_path = original_bfs
+        agent_module.astar_find_path = original_astar
+
+
+# =====================================================================
 # TEST PEŁNEGO STOSU Z SIECIĄ (wolny -- trenuje CNN). Uruchom: python3 test_rover.py --nn
 # =====================================================================
 def test_nn_integration():
     import asyncio
-    import app.api as api  # import trenuje sieć CNN+MLP
+    import app.api as api
+    api.ensure_cnn_loaded()
     survived_full = 0
     for _ in range(3):
         api.env.reset()
@@ -249,7 +296,13 @@ def test_nn_integration():
         for _ in range(1500):
             if a.status == "DEAD":
                 break
-            a.follow_plan_or_search(api.env, api.trained_nn, api.scaler, api.reverse_mapping)
+            a.follow_plan_or_search(
+                api.env,
+                api.trained_nn,
+                api.scaler,
+                api.reverse_mapping,
+                tree_clf=api.tree_clf,
+            )
             a.interact_and_recharge(api.env)
             api.env.update_time_and_weather()
             assert a.current_weight() <= a.capacity + 1e-6

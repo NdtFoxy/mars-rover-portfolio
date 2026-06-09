@@ -3,12 +3,16 @@
 Każdy folder `zadanie_N_*` jest **samodzielny** i zawiera:
 - **PDF** — treść zadania od prowadzącego,
 - **README.md** — wymagania z PDF + jak je spełniliśmy,
-- **uruchom.py** — szybkie uruchomienie (wywołuje wspólny silnik z `app/`),
+- plik z **realną implementacją algorytmu** (`bfs.py`, `astar.py`, `drzewo.py`,
+  `siec.py` albo `genetyczny.py`),
+- **uruchom.py** — szybka demonstracja używająca tej samej implementacji co serwer,
 - **zbior/** — dane wejściowe / **zbiór uczący**,
 - **decyzja/** — **wynik / decyzja** algorytmu.
 
-> Kod jest wspólny i znajduje się w `app/` (środowisko, agent, sieć, knapsack, search).
-> Foldery `zadanie_N` to „witryny” poszczególnych zadań — nie duplikują kodu, tylko go uruchamiają i zbierają dane/wyniki.
+`app/core/agent.py` importuje algorytmy bezpośrednio z tych folderów. Dzięki temu
+kod pokazany przy obronie jest dokładnie kodem używanym przez działającego łazika.
+CNN jest trenowana tylko dla zadania 6; w pozostałych trybach bazową decyzję
+`GO_TO_CHARGE` / `CONTINUE_MINING` podejmuje szybkie drzewo decyzyjne.
 
 | # | Folder | Algorytm | zbiór | decyzja |
 |---|--------|----------|-------|---------|

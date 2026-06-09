@@ -7,19 +7,25 @@ from typing import List, Dict, Any, Optional
 from PIL import Image
 import torchvision.transforms as transforms
 from .environment import Environment, ChargingStation, Mineral, MATERIAL_SPECS, MINERAL_TYPES
-from .search import astar_find_path, bfs_find_path, TERRAIN_COSTS, TURN_COST
+from zadania.zadanie_4_Astar.astar import astar_find_path, TERRAIN_COSTS, TURN_COST
+from zadania.zadanie_3_BFS.bfs import bfs_find_path
+from zadania.zadanie_5_DrzewoDecyzyjne.drzewo import predict_with_tree
 from .mission import get_active_task
-from .knapsack import items_from_minerals, solve_knapsack_ga, solve_knapsack_dp
+from zadania.zadanie_7_AlgorytmGenetyczny.genetyczny import items_from_minerals, solve_knapsack_ga, solve_knapsack_dp
 from . import shop
 
 # Najlżejszy/najmniejszy minerał -- jeśli wolnego miejsca jest mniej, plecak jest "pełny".
+# Najlżejszy/minimalny minerał -- jeśli miejsca jest mniej, plecak uznajemy za pełny.
+# Самый лёгкий/малый минерал -- если свободного места меньше, рюкзак считаем полным.
 MIN_MINERAL_WEIGHT = min(spec["weight"] for spec in MATERIAL_SPECS.values())
 MIN_MINERAL_VOLUME = min(spec["volume"] for spec in MATERIAL_SPECS.values())
 BASE_CAPACITY = 20.0       # bazowy limit WAGI plecaka (kg)
 BASE_VOLUME = 16.0         # bazowy limit OBJĘTOŚCI plecaka (l)
 BASE_MAX_BATTERY = 100.0   # bazowa pojemność baterii
 
-# Transformacja obrazu kamery dla wnioskowania (musi być identyczna jak w api.py)
+# Transformacja obrazu kamery dla wnioskowania (musi być identyczna jak w api.py).
+# Transformacja obrazu kamery do wnioskowania musi być taka sama jak w `api.py`.
+# Преобразование изображения камеры для инференса musi być identyczne jak w `api.py`.
 agent_img_transform = transforms.Compose([
     transforms.Resize((32, 32)),
     transforms.ToTensor()
@@ -39,6 +45,8 @@ class Agent:
         self.direction = "N"
 
         # --- Parametry modyfikowane przez sklep (ulepszenia) ---
+        # --- Parametry zmieniane przez sklep (ulepszenia) ---
+        # --- Параметры, изменяемые магазинem (улучшения) ---
         self.max_battery: float = BASE_MAX_BATTERY
         self.battery: float = self.max_battery
         self.capacity: float = BASE_CAPACITY        # limit WAGI plecaka (kg)
@@ -56,8 +64,12 @@ class Agent:
         self.status: str = "IDLE"
         self.current_plan: List[str] = []
         self.nn_confidence = {"MINING": 0.0, "CHARGE": 0.0}
+        self.decision_system = "HEURISTIC"
+        self.last_decision = "CONTINUE_MINING"
 
         # --- Stan związany z problemem plecakowym ---
+        # --- Stan związany z problemem plecakowym i wyborem minerałów ---
+        # --- Состояние, связанное с задачą рюкзака i wyborem minerałów ---
         self.mining_manifest: List[Mineral] = []    # zestaw minerałów wybrany przez GA
         self.last_knapsack: Optional[Dict[str, Any]] = None
         self.last_purchase: str = ""
@@ -65,6 +77,8 @@ class Agent:
         self.current_upgrade_target: Optional[str] = None  # aktualny INTELIGENTNY cel zakupów
 
     # ---- Aktualna waga / objętość ładunku w plecaku ----
+    # ---- Aktualna waga i objętość ładunku w plecaku ----
+    # ---- Текущий вес i объём груза в рюкзакu ----
     def current_weight(self) -> float:
         return sum(MATERIAL_SPECS.get(m, {"weight": 1.0})["weight"] for m in self.inventory)
 
@@ -102,8 +116,13 @@ class Agent:
         self._check_death()
 
     def _get_valid_target_upgrade(self) -> Optional[str]:
-        """INTELIGENTNY wybór ulepszenia oparty na analizie bieżących słabości łazika (Expert System)."""
-        # 1. Jeśli mamy już cel, sprawdzamy czy nadal fizycznie mieści się w plecaku
+        """INTELIGENTNY wybór ulepszenia oparty na analizie bieżących słabości łazika (Expert System).
+        Inteligentny wybór ulepszenia na podstawie bieżących słabości łazika.
+        Интеллектуальный wybór улучшения na podstawie aktualnych słabości ровера.
+        """
+        # 1. Jeśli mamy już cel, sprawdzamy czy nadal fizycznie mieści się w plecaku.
+        # 1. Jeśli mamy już cel, sprawdzamy, czy nadal fizycznie mieści się w plecaku.
+        # 1. Если цель уже jest, sprawdzamy, czy nadal mieści się w рюкzaku.
         if self.current_upgrade_target:
             cost = shop.next_level_cost(self.current_upgrade_target, self)
             if cost is not None:
@@ -112,7 +131,9 @@ class Agent:
                 if req_w <= self.capacity and req_v <= self.volume_capacity:
                     return self.current_upgrade_target
 
-        # 2. Jeśli nie mamy celu, sprawdzamy na co możemy w ogóle zbierać (co zmieści się fizycznie w plecaku)
+        # 2. Jeśli nie mamy celu, sprawdzamy na co możemy w ogóle zbierać.
+        # 2. Jeśli nie mamy celu, sprawdzamy, co w ogóle zmieści się w plecaku.
+        # 2. Если цели nie ma, sprawdzamy, co w ogóle zmieści się w рюкzaku.
         valid_targets = []
         for upgrade_id in shop.UPGRADE_ORDER:
             cost = shop.next_level_cost(upgrade_id, self)
@@ -122,33 +143,49 @@ class Agent:
                 if req_w <= self.capacity and req_v <= self.volume_capacity:
                     valid_targets.append(upgrade_id)
         
-        # 3. Zastosowanie analizy heurystycznej (AI Scoring) do wyboru najlepszego ulepszenia
+        # 3. Zastosowanie prostego scoringu heurystycznego do wyboru najlepszego ulepszenia.
+        # 3. Zastosowanie prostego scoringu heurystycznego do wyboru najlepszego ulepszenia.
+        # 3. Использование prostego heurystycznego scoringu для wyboru najlepszego улучшения.
         if valid_targets:
             scores = {}
             for uid in valid_targets:
                 score = 0.0
                 if uid == "battery":
-                    # Im mniejsza bateria, tym bardziej jej potrzebuje (Priorytet najwyższy)
+                    # Im mniejsza bateria, tym bardziej jej potrzebuje (Priorytet najwyższy).
+                    # Im mniejsza bateria, tym większy priorytet.
+                    # Чем mniejsza bateria, tym wyższy priorytet.
                     score = (100.0 / self.max_battery) * 100.0
                 elif uid == "motor":
-                    # Im gorsza wydajność silnika, tym wyższy priorytet
+                    # Im gorsza wydajność silnika, tym wyższy priorytet.
+                    # Im słabszy napęd, tym większy priorytet.
+                    # Чем gorsza wydajność silnika, tym wyższy priorytet.
                     score = self.motor_efficiency * 90.0
                 elif uid == "cargo":
-                    # Im mniejszy plecak w stosunku do bazy, tym większa potrzeba
+                    # Im mniejszy plecak w stosunku do bazy, tym większa potrzeba.
+                    # Im mniejszy plecak, tym pilniejszy zakup.
+                    # Чем mniejszy plecak względem bazy, tym większa potrzeba.
                     score = (20.0 / self.capacity) * 85.0
                 elif uid == "compressor":
-                    # Objętość: kompresor ma wysoki wynik, dopóki factor jest wysoki (1.0)
+                    # Objętość: kompresor ma wysoki wynik, dopóki factor jest wysoki (1.0).
+                    # Kompresor jest ważny, dopóki mnożnik objętości jest wysoki.
+                    # Компрессор ważny, пока współczynnik объёmu jest wysoki.
                     score = self.volume_factor * 80.0
                 elif uid == "solar":
-                    # Panele słoneczne stają się mniej ważne po pierwszym ulepszeniu
+                    # Panele słoneczne stają się mniej ważne po pierwszym ulepszeniu.
+                    # Panele słoneczne z czasem dostają niższy priorytet.
+                    # Солнечные панели z czasem dostają niższy priorytet.
                     score = (1.0 / self.solar_bonus) * 75.0
                 elif uid == "drill":
-                    # Wiertło przydaje się później, żeby szybciej zarabiać
+                    # Wiertło przydaje się później, żeby szybciej zarabiać.
+                    # Wiertło pomaga później zwiększać zysk.
+                    # Бур przydaje się później, aby szybciej zarabiać.
                     score = 40.0 + (self.sell_bonus * 20.0)
                 
                 scores[uid] = score
                 
-            # Łazik samodzielnie decyduje się na cel z najwyższym wynikiem (najbardziej potrzebny)
+            # Łazik samodzielnie decyduje się na cel z najwyższym wynikiem.
+            # Rover sam wybiera cel z najwyższym wynikiem.
+            # Ровер sam wybiera цель с najwyższym wynikiem.
             best_upgrade = max(scores, key=scores.get)
             self.current_upgrade_target = best_upgrade
             return self.current_upgrade_target
@@ -158,6 +195,7 @@ class Agent:
 
     # =================================================================
     # PROBLEM PLECAKOWY: planowanie zestawu minerałów do zebrania (GA)
+    # ЗАДАЧA РЮКЗАКА: planowanie zestawu minerałów do zebrania (GA)
     # =================================================================
     def _plan_mining_manifest(self, env: Environment, method: str = "ga") -> None:
         active = [m for m in env.objects if m.is_active and m.type in MINERAL_TYPES]
@@ -225,9 +263,17 @@ class Agent:
         is_full = (rem_w < MIN_MINERAL_WEIGHT) or (rem_v < MIN_MINERAL_VOLUME * self.volume_factor)
 
         # Priorytet celu zależy od POTRZEBY:
+        # Priorytet celu zależy od aktualnej potrzeby.
+        # Priorytet zależy od aktualnej potrzeby.
         #  - pełny plecak -> najpierw BAZA (sprzedaż),
         #  - słaba bateria -> najpierw ŁADOWARKA (baza nie ładuje!),
         #  - w innym wypadku -> baza (sprzedaż / sklep).
+        #  - pełny plecak -> najpierw BAZA (sprzedaż).
+        #  - słaba bateria -> najpierw ŁADOWARKA (baza nie ładuje!).
+        #  - w innym wypadku -> baza (sprzedaż / sklep).
+        #  - full backpack -> first BASE (sale).
+        #  - weak battery -> first CHARGER (base does not charge!).
+        #  - otherwise -> base (sale / shop).
         if is_full:
             candidates = bases + chargers
         elif self.battery < 0.55 * self.max_battery:
@@ -252,7 +298,10 @@ class Agent:
         return None
 
     def _find_path(self, gx: int, gy: int, env: Environment) -> Optional[List[str]]:
-        """Wybór algorytmu wg aktywnego zadania: Zadanie 3 -> BFS, pozostałe -> A*."""
+        """Wybór algorytmu wg aktywnego zadania: Zadanie 3 -> BFS, pozostałe -> A*.
+        Wybiera algorytm zgodnie z aktywnym zadaniem.
+        Выбирает алгоритм zgodnie z aktywnym zadaniem.
+        """
         if get_active_task().get("selected_task") == "project-3-uninformed-search":
             return bfs_find_path(self.x, self.y, self.direction, gx, gy, env)
         return astar_find_path(self.x, self.y, self.direction, gx, gy, env)
@@ -265,7 +314,7 @@ class Agent:
         energy_to_return = dist * 2.5 * self.motor_efficiency + 15.0
         return self.battery <= energy_to_return
 
-    def follow_plan_or_search(self, env: Environment, trained_nn=None, scaler=None, reverse_mapping=None) -> None:
+    def follow_plan_or_search(self, env: Environment, trained_nn=None, scaler=None, reverse_mapping=None, tree_clf=None) -> None:
         if self.status == "DEAD":
             return
 
@@ -275,9 +324,13 @@ class Agent:
             self.charging_mode = True
 
         # Trasa do stacji liczona tylko w trybie ładowania.
+        # Trasa do stacji liczona jest tylko przy ładowaniu.
+        # Маршрут до станции liczymy tylko w trybie ładowania.
         station_plan = self._plan_to_station(env) if self.charging_mode else None
         if self.charging_mode and station_plan is None:
             # Brak osiągalnej/aktywnej ładowarki -> nie zamarzaj na polu, wróć do normalnej pracy.
+            # Brak dostępnej ładowarki -> wróć do normalnej pracy.
+            # Нет доступной зарядки -> wróć do normalnej pracy.
             self.charging_mode = False
 
         if self.charging_mode:
@@ -286,8 +339,12 @@ class Agent:
         elif not self.current_plan:
             if trained_nn is not None and scaler is not None and reverse_mapping is not None:
                 decision = self.decide_next_macro_action(env, trained_nn, scaler, reverse_mapping)
+            elif tree_clf is not None:
+                decision = self.decide_with_tree(env, tree_clf)
             else:
+                self.decision_system = "HEURISTIC"
                 decision = "CONTINUE_MINING"
+            self.last_decision = decision
 
             rem_w = self.capacity - self.current_weight()
             rem_v = self.volume_capacity - self.current_volume()
@@ -329,6 +386,7 @@ class Agent:
 
     # =================================================================
     # EKONOMIA W BAZIE: sprzedaż nadwyżek + zakup ulepszeń (pieniądze+materiały)
+    # ЭКОНОМИКА В БАЗЕ: sprzedaż nadwyżek + zakup ulepszeń (pieniądze+materiały)
     # =================================================================
     def _do_base_economy(self) -> None:
         target = self._get_valid_target_upgrade()
@@ -356,7 +414,9 @@ class Agent:
                 if not result.get("success"):
                     break
                 self.last_purchase = result["message"]
-                self.current_upgrade_target = None  # <--- Po zakupie resetujemy cel, łazik znowu przeanalizuje czego mu brakuje
+                # Po zakupie resetujemy cel, żeby łazik policzył potrzeby od nowa.
+                # После покупки сбрасываем цель, чтобы ровер пересчитал потребности заново.
+                self.current_upgrade_target = None
             else:
                 break
 
@@ -474,6 +534,7 @@ class Agent:
             return fallback
 
     def decide_next_macro_action(self, env: Environment, trained_nn, scaler, reverse_mapping: dict) -> str:
+        self.decision_system = "CNN + MLP"
         img_tensor = self.get_camera_image_from_ue5(env)
 
         battery_pct = (self.battery / self.max_battery * 100.0) if self.max_battery > 0 else 0.0
@@ -502,6 +563,12 @@ class Agent:
             class_idx = torch.argmax(outputs, dim=1).item()
 
         decision = reverse_mapping.get(class_idx, "CONTINUE_MINING")
+        return decision
+
+    def decide_with_tree(self, env: Environment, tree_clf) -> str:
+        self.decision_system = "DECISION TREE"
+        decision, confidence = predict_with_tree(tree_clf, self, env)
+        self.nn_confidence = confidence
         return decision
 
     def _calculate_solar_efficiency(self, time_of_day: int) -> float:
@@ -561,6 +628,7 @@ class Agent:
             "money": round(self.money, 2),
             "upgrade_levels": self.upgrade_levels,
             "nn_thought": nn_thought_str,
+            "decision_system": self.decision_system,
             "camera_matrix": pixels,
             "camera_feed_type": feed_type,
             "status": self.status,

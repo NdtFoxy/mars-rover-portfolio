@@ -10,9 +10,10 @@
 5. **Zróżnicowany koszt** wjazdu na pola różnych typów (np. piasek vs skała).
 
 ## Realizacja
-- Algorytm: `app/core/search.py` → `astar_find_path` (kopiec priorytetowy, `f = g + h`, `h` = odległość Manhattan).
+- Algorytm: `astar.py` → `astar_find_path` (kopiec priorytetowy, `f = g + h`, `h` = odległość Manhattan).
 - Koszty kafli: `TERRAIN_COSTS` (piasek `2.0`, skała `6.0`), obrót `0.5`.
 - W wyniku pokazane jest porównanie liczby rozwiniętych węzłów A\* vs BFS (A\* jest efektywniejszy).
+- `app/core/agent.py` importuje tę funkcję bezpośrednio i używa jej w trybach innych niż zadanie 3.
 
 ## Pliki
 - `zbior/mapa.txt` — mapa + koszty kafli + start/cel

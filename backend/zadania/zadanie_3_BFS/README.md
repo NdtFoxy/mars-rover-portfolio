@@ -9,7 +9,8 @@
 4. Agent dysponuje akcjami: ruch do przodu, obrót w lewo, obrót w prawo.
 
 ## Realizacja
-- Algorytm: `app/core/search.py` → `bfs_find_path` (kolejka FIFO, stan = `(x, y, kierunek)`, akcje `MOVE_FORWARD / TURN_LEFT / TURN_RIGHT`, bez kosztu i heurystyki).
+- Algorytm: `bfs.py` → `bfs_find_path` (kolejka FIFO, stan = `(x, y, kierunek)`, akcje `MOVE_FORWARD / TURN_LEFT / TURN_RIGHT`, bez kosztu i heurystyki).
+- `app/core/agent.py` importuje tę funkcję bezpośrednio i używa jej, gdy aktywne jest zadanie 3.
 - Mapa generowana przez `Environment` (piasek / skała / krater).
 
 ## Pliki

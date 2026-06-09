@@ -17,6 +17,7 @@ class AgentState(BaseModel):
     money: float = 0.0
     upgrade_levels: Dict[str, int] = {}
     nn_thought: str = "MINING 0.0% | CHARGE 0.0%"
+    decision_system: str = "HEURISTIC"
     camera_matrix: List[int] = [0, 0, 0, 0, 0, 0, 0, 0, 0] # Matryca pikseli 3x3 w formie płaskiej [2]
     camera_feed_type: str = "SAND"
 

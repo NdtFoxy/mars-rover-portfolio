@@ -1,7 +1,7 @@
 ZBIOR UCZACY (Zadanie 6 - siec neuronowa)
 Lacznie przykladow: 2000
-  klasa GO_TO_CHARGE: 1000 przykladow
   klasa CONTINUE_MINING: 1000 przykladow
+  klasa GO_TO_CHARGE: 1000 przykladow
 
 Wejscie sieci: obraz z kamery UE5 (CNN) + 7 cech telemetrii (MLP).
 Foldery zdjec UE5: backend/ue5_photos/{sand,rock,crater,station,base}

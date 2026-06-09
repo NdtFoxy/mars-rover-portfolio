@@ -1,16 +1,25 @@
 """
-WIELOWYMIAROWY PROBLEM PLECAKOWY (Multidimensional 0/1 Knapsack).
+Wielowymiarowy problem plecakowy 0/1.
+Многомерная задача рюкзака 0/1.
 
-Łazik napotyka zbiór minerałów, każdy o WADZE (kg), OBJĘTOŚCI (l) i WARTOŚCI ($).
-Plecak ma DWA limity: maksymalną wagę ORAZ maksymalną objętość. Trzeba wybrać
-podzbiór minerałów maksymalizujący wartość, mieszczący się w OBU limitach naraz.
+Łazik napotyka zbiór minerałów, z których każdy ma wagę (kg), objętość (l)
+i wartość ($). Plecak ma dwa limity naraz: wagę i objętość. Trzeba wybrać
+podzbiór minerałów maksymalizujący wartość i mieszczący się w obu limitach.
+Ровер встречает набор минералов, у каждого есть вес (кг), объём (л)
+и ценность ($). Рюкзак имеет два ограничения сразу: вес и объём. Нужно выбрать
+поднабор минералов с максимальной ценностью и в пределах обоих лимитов.
 
 Dwa rozwiązania:
-  * solve_knapsack_dp  -- DOKŁADNE, programowanie dynamiczne  O(n * W * V)
-  * solve_knapsack_ga  -- ALGORYTM GENETYCZNY (krzyżowanie + mutacja + ruletka)
+  * `solve_knapsack_dp` - dokładne programowanie dynamiczne O(n * W * V)
+  * `solve_knapsack_ga` - algorytm genetyczny (krzyżowanie, mutacja, ruletka)
+Два решения:
+  * `solve_knapsack_dp` - точное динамическое программирование O(n * W * V)
+  * `solve_knapsack_ga` - генетический алгоритм (скрещивание, мутация, рулетка)
 
-Zadanie "Algorytmy genetyczne" realizuje GA; DP to wzorzec do walidacji
-optymalności (raport porównawczy GA vs DP).
+Zadanie z algorytmów genetycznych realizuje GA, a DP służy do walidacji
+optymalności i przygotowania raportu porównawczego.
+Задание из области генетических алгоритмов реализует GA, а DP служит для проверки
+оптимальности и подготовки сравнительного отчёта.
 """
 
 import random
@@ -20,7 +29,9 @@ from typing import List, Tuple, Any, Optional
 
 
 class KnapsackItem:
-    """Przedmiot (minerał) kandydujący do plecaka: waga, objętość, wartość."""
+    """Przedmiot (minerał) kandydujący do plecaka: waga, objętość, wartość.
+    Предмет (минерал)-кандидат в рюкзак: вес, объём, ценность.
+    """
     def __init__(self, name: str, weight: float, volume: float, value: float, ref: Any = None):
         self.name = name
         self.weight = weight
@@ -33,7 +44,9 @@ class KnapsackItem:
 
 
 def items_from_minerals(minerals: List[Any]) -> List[KnapsackItem]:
-    """Konwertuje aktywne obiekty Mineral na listę przedmiotów plecakowych."""
+    """Konwertuje aktywne obiekty Mineral na listę przedmiotów plecakowych.
+    Преобразует активные объекты Mineral в список предметов для рюкзака.
+    """
     items = []
     for m in minerals:
         w = getattr(m, "weight", 1.0)
@@ -45,6 +58,7 @@ def items_from_minerals(minerals: List[Any]) -> List[KnapsackItem]:
 
 # =====================================================================
 # 1. ROZWIĄZANIE DOKŁADNE -- PROGRAMOWANIE DYNAMICZNE 2D (wzorzec optymalności)
+# 1. ТОЧНОЕ РЕШЕНИЕ -- ДВУМЕРНОЕ ДИНАМИЧЕСКОЕ ПРОГРАММИРОВАНИЕ (эталон оптимальности)
 # =====================================================================
 def solve_knapsack_dp(items: List[KnapsackItem], cap_w: float, cap_v: float
                       ) -> Tuple[List[KnapsackItem], float, float, float]:
@@ -52,6 +66,9 @@ def solve_knapsack_dp(items: List[KnapsackItem], cap_w: float, cap_v: float
     Dokładne rozwiązanie wielowymiarowego problemu plecakowego 0/1 metodą
     programowania dynamicznego po DWÓCH wymiarach (waga i objętość).
     Zwraca (wybrane_przedmioty, suma_wartości, suma_wag, suma_objętości).
+    Точное решение многомерной задачи рюкзака 0/1 методом динамического
+    программирования по ДВУМ измерениям (вес и объём).
+    Возвращает (wybrane_przedmioty, suma_wartości, suma_wag, suma_objętości).
     """
     n = len(items)
     W = int(round(cap_w))
@@ -64,7 +81,9 @@ def solve_knapsack_dp(items: List[KnapsackItem], cap_w: float, cap_v: float
     values = [it.value for it in items]
 
     # dp[i][w][v] = maksymalna wartość przy pierwszych i przedmiotach,
-    # limicie wagi w oraz limicie objętości v
+    #               limicie wagi w oraz limicie objętości v
+    # dp[i][w][v] = максимальная ценность для первых i предметов,
+    #               при лимите веса w и лимите объёма v
     dp = [[[0.0] * (V + 1) for _ in range(W + 1)] for _ in range(n + 1)]
     for i in range(1, n + 1):
         wi, vi, val = weights[i - 1], vols[i - 1], values[i - 1]
@@ -72,13 +91,18 @@ def solve_knapsack_dp(items: List[KnapsackItem], cap_w: float, cap_v: float
         for w in range(W + 1):
             for v in range(V + 1):
                 best = prev[w][v]                       # nie bierzemy przedmiotu i
+                # Nie bierzemy tego przedmiotu.
+                # Этот предмет не берем.
                 if wi <= w and vi <= v:
                     take = prev[w - wi][v - vi] + val   # bierzemy przedmiot i
+                    # Bierzemy ten przedmiot.
+                    # Берем этот предмет.
                     if take > best:
                         best = take
                 cur[w][v] = best
 
     # Odtworzenie wybranego podzbioru (backtracking)
+    # Восстановление выбранного подмножества (backtracking)
     chosen: List[KnapsackItem] = []
     w, v = W, V
     for i in range(n, 0, -1):
@@ -96,9 +120,12 @@ def solve_knapsack_dp(items: List[KnapsackItem], cap_w: float, cap_v: float
 
 # =====================================================================
 # 2. ALGORYTM GENETYCZNY (selekcja ruletkowa + krzyżowanie + mutacja)
+# 2. ГЕНЕТИЧЕСКИЙ АЛГОРИТМ (рулеточный отбор + скрещивание + мутация)
 # =====================================================================
 class KnapsackChromosome:
-    """Osobnik = wektor bitów. genes[i] == 1 => i-ty przedmiot jest w plecaku."""
+    """Osobnik = wektor bitów. genes[i] == 1 => i-ty przedmiot jest w plecaku.
+    Особь = вектор битов. genes[i] == 1 => i-й предмет лежит в рюкзаке.
+    """
     def __init__(self, n: int, randomize: bool = True):
         self.n = n
         if randomize:
@@ -109,7 +136,9 @@ class KnapsackChromosome:
 
 
 class KnapsackGA:
-    """Ewolucja rozwiązań wielowymiarowego problemu plecakowego."""
+    """Ewolucja rozwiązań wielowymiarowego problemu plecakowego.
+    Эволюция решений многомерной задачи рюкзака.
+    """
     def __init__(self, items: List[KnapsackItem], cap_w: float, cap_v: float,
                  pop_size: int = 50, mutation_rate: float = 0.05,
                  generations: int = 80):
@@ -122,6 +151,7 @@ class KnapsackGA:
         self.generations = generations
         self.population: List[KnapsackChromosome] = []
         # Kara za przekroczenie KTÓREGOKOLWIEK limitu (na jednostkę nadmiaru).
+        # Штраф за превышение ЛЮБОГО лимита (за единицу превышения).
         self.penalty_factor = max((it.value for it in items), default=1.0)
 
     def init_population(self) -> None:
@@ -133,6 +163,9 @@ class KnapsackGA:
         Funkcja przystosowania: suma wartości. Przekroczenie limitu wagi LUB
         objętości jest karane (rozwiązanie niedopuszczalne), ale fitness > 0,
         aby selekcja ruletkowa działała.
+        Функция приспособленности: сумма ценности. Превышение лимита веса ИЛИ
+        объёма штрафуется (решение недопустимо), но fitness > 0,
+        чтобы работал рулеточный отбор.
         """
         total_w = total_v = total_val = 0.0
         for gene, item in zip(chromo.genes, self.items):
@@ -149,7 +182,9 @@ class KnapsackGA:
         return chromo.fitness
 
     def roulette_wheel_selection(self) -> KnapsackChromosome:
-        """Wybór rodzica zgodnie z regułą ruletki (proporcjonalnie do fitness)."""
+        """Wybór rodzica zgodnie z regułą ruletki (proporcjonalnie do fitness).
+        Выбор родителя по правилу рулетки (пропорционально fitness).
+        """
         total_fitness = sum(ind.fitness for ind in self.population)
         if total_fitness <= 0:
             return random.choice(self.population)
@@ -164,7 +199,9 @@ class KnapsackGA:
 
     def crossover(self, parent1: KnapsackChromosome,
                   parent2: KnapsackChromosome) -> KnapsackChromosome:
-        """Krzyżowanie jednopunktowe wektorów genów."""
+        """Krzyżowanie jednopunktowe wektorów genów.
+        Одноточечное скрещивание векторов генов.
+        """
         child = KnapsackChromosome(self.n, randomize=False)
         if self.n < 2:
             child.genes = list(parent1.genes)
@@ -174,7 +211,9 @@ class KnapsackGA:
         return child
 
     def mutate(self, child: KnapsackChromosome) -> None:
-        """Mutacja: z prawdopodobieństwem mutation_rate odwracamy bit (0<->1)."""
+        """Mutacja: z prawdopodobieństwem mutation_rate odwracamy bit (0<->1).
+        Мутация: с вероятностью mutation_rate инвертируем бит (0<->1).
+        """
         for i in range(self.n):
             if random.random() < self.mutation_rate:
                 child.genes[i] = 1 - child.genes[i]
@@ -202,6 +241,7 @@ class KnapsackGA:
 
             new_population: List[KnapsackChromosome] = []
             # Elityzm -- najlepsze osobniki przechodzą bez zmian
+            # Элитизм -- лучшие особи переходят без изменений
             new_population.append(copy.deepcopy(self.population[0]))
             if self.pop_size > 1:
                 new_population.append(copy.deepcopy(self.population[1]))
@@ -224,9 +264,15 @@ def solve_knapsack_ga(items: List[KnapsackItem], cap_w: float, cap_v: float,
                       ) -> Tuple[List[KnapsackItem], float, float, float]:
     """
     Rozwiązuje wielowymiarowy problem plecakowy algorytmem genetycznym.
+    Решает многомерную задачу рюкзака генетическим алгоритмом.
+
     Zwraca (wybrane_przedmioty, suma_wartości, suma_wag, suma_objętości).
+    Возвращает (wybrane_przedmioty, suma_wartości, suma_wag, suma_objętości).
+
     Ewentualna nadwaga/nadobjętość jest naprawiana zachłannie -- usuwamy
     przedmioty o najgorszym stosunku wartość/(waga+objętość).
+    Лишний вес/объём исправляется жадно -- удаляем предметы с худшим
+    stosunku wartość/(waga+objętość).
     """
     if not items:
         return [], 0.0, 0.0, 0.0
@@ -237,6 +283,7 @@ def solve_knapsack_ga(items: List[KnapsackItem], cap_w: float, cap_v: float,
     chosen = [items[i] for i, g in enumerate(best.genes) if g]
 
     # Naprawa: usuwaj najmniej opłacalne, aż zmieścimy się w OBU limitach
+    # Исправление: удаляем наименее выгодные, пока не уложимся в ОБА лимита
     def over(sel):
         return sum(it.weight for it in sel) > cap_w or sum(it.volume for it in sel) > cap_v
     if over(chosen):
@@ -252,10 +299,13 @@ def solve_knapsack_ga(items: List[KnapsackItem], cap_w: float, cap_v: float,
 
 # =====================================================================
 # 3. PORÓWNANIE GA vs DP (do raportu / endpointu diagnostycznego)
+# 3. СРАВНЕНИЕ GA vs DP (для отчёта / диагностического endpoint)
 # =====================================================================
 def compare_knapsack(items: List[KnapsackItem], cap_w: float, cap_v: float,
                      ga_params: Optional[dict] = None) -> dict:
-    """Uruchamia oba algorytmy na tej samej instancji i zwraca metryki."""
+    """Uruchamia oba algorytmy na tej samej instancji i zwraca metryki.
+    Запускает оба алгоритма на одной и той же задаче и возвращает метрики.
+    """
     ga_params = ga_params or {}
 
     t0 = time.perf_counter()
@@ -288,8 +338,10 @@ def run_knapsack_experiment(num_items: int = 12, cap_w: float = 20.0,
     """
     Eksperyment porównawczy GA vs DP na wielu losowych instancjach
     wielowymiarowego problemu plecakowego. Wyniki -> 'knapsack_report.txt'.
+    Сравнительный эксперимент GA vs DP на многих случайных экземплярах
+    многомерной задачи рюкзака. Результаты -> 'knapsack_report.txt'.
     """
-    from .environment import MATERIAL_SPECS, MINERAL_TYPES
+    from app.core.environment import MATERIAL_SPECS, MINERAL_TYPES
 
     lines: List[str] = []
     lines.append("=" * 78)

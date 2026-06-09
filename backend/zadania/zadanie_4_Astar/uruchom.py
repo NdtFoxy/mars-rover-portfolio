@@ -16,7 +16,8 @@ os.makedirs(DECYZJA, exist_ok=True)
 
 import random
 from app.core.environment import Environment
-from app.core.search import astar_find_path, bfs_find_path, TERRAIN_COSTS, TURN_COST
+from zadania.zadanie_4_Astar.astar import astar_find_path, TERRAIN_COSTS, TURN_COST
+from zadania.zadanie_3_BFS.bfs import bfs_find_path
 
 random.seed(42)
 

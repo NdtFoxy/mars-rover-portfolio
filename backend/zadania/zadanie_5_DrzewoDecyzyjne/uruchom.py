@@ -18,15 +18,12 @@ os.makedirs(DECYZJA, exist_ok=True)
 import matplotlib
 matplotlib.use("Agg")  # bez okna -- zapis do pliku
 import matplotlib.pyplot as plt
+import random
 from sklearn.tree import DecisionTreeClassifier, export_text, plot_tree
 
-from app.core.decision_tree_agent import generate_dataset
+from zadania.zadanie_5_DrzewoDecyzyjne.drzewo import FEATURES, generate_dataset
 
-# 8 atrybutow opisujacych decyzje (wymog: >= 8)
-FEATURES = [
-    "battery_level", "time_of_day", "solar_efficiency", "weather_multiplier",
-    "terrain_type", "dist_to_mineral", "dist_to_station", "inventory_fill_ratio",
-]
+random.seed(42)
 
 print("[Zadanie 5] Generuje zbior uczacy (>= 200 przykladow)...")
 df = generate_dataset(300)                       # >= 200

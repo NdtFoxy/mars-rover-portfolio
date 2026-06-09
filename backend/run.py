@@ -3,10 +3,11 @@
 Launcher serwera ARES dla Unreal Engine + przeładowanie zadania (Alt+R).
 
 Przepływ:
-  1) terminal A:  python run.py        -> uruchamia serwer (sieć trenuje się RAZ)
+  1) terminal A:  python run.py        -> uruchamia serwer (domyślnie szybkie drzewo)
   2) terminal B:  python navigate.py   -> wybierasz zadanie (zapis do mission_config.json)
-  3) Alt+R (tu w konsoli) LUB przycisk w UE5 (POST /mission/reload)
-     -> serwer podciąga wybrane zadanie BEZ restartu i oddaje je w JSON.
+  3) Navigator automatycznie wywołuje POST /mission/reload.
+     Alt+R i przycisk w UE5 pozostają dodatkowymi sposobami przeładowania.
+        CNN trenuje się leniwie tylko po wybraniu zadania 6.
 
 API dla Unreal Engine:
   GET  /state            -> pole "mission" = aktywne zadanie
@@ -80,7 +81,8 @@ def main() -> int:
     print("=" * 64)
     print(f"[RUN] Start serwera: http://localhost:{PORT}/docs")
     print("[RUN] W drugim terminalu: python navigate.py  (wybierz zadanie)")
-    print("[RUN] Potem Alt+R tutaj LUB POST /mission/reload z UE5 -> podciąga wybór.")
+    print("[RUN] Wybór w navigate.py jest stosowany automatycznie.")
+    print("[RUN] Alt+R tutaj lub POST /mission/reload z UE5 także wymusza przeładowanie.")
     print("[RUN] Wyjście: Ctrl+C")
     print("=" * 64)
 

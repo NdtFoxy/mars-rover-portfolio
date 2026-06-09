@@ -55,6 +55,16 @@ Version Control: Git (Gitea).
             📐 <code>models.py</code> ── Pydantic data schemas (GameState, Position)
           </blockquote>
         </details>
+        <details open>
+          <summary>🧠 <kbd>📁 zadania</kbd> ── <i>Real Course Algorithm Modules</i></summary>
+          <blockquote>
+            🔎 <code>zadanie_3_BFS/bfs.py</code> ── Breadth-First Search used by the rover<br>
+            🧭 <code>zadanie_4_Astar/astar.py</code> ── A* with terrain costs and Manhattan heuristic<br>
+            🌳 <code>zadanie_5_DrzewoDecyzyjne/drzewo.py</code> ── Decision-tree training and live inference<br>
+            🧠 <code>zadanie_6_SiecNeuronowa/siec.py</code> ── CNN + MLP training, loaded only for task 6<br>
+            🧬 <code>zadanie_7_AlgorytmGenetyczny/genetyczny.py</code> ── Genetic knapsack optimizer
+          </blockquote>
+        </details>
         🔸 <code>📄 requirements.txt</code> ── Backend dependency matrix<br>
         🔥 <b><kbd>🚀 run.py</kbd></b> ── <i>MAIN SERVER IGNITION (Entry Point)</i>
       </blockquote>

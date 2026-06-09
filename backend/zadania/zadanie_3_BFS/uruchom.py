@@ -16,7 +16,7 @@ os.makedirs(DECYZJA, exist_ok=True)
 
 import random
 from app.core.environment import Environment
-from app.core.search import bfs_find_path
+from zadania.zadanie_3_BFS.bfs import bfs_find_path
 
 random.seed(42)
 

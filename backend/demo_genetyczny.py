@@ -18,7 +18,7 @@ Uruchomienie (z katalogu backend/):
 
 import random
 from app.core.environment import MATERIAL_SPECS, MINERAL_TYPES
-from app.core.knapsack import (
+from zadania.zadanie_7_AlgorytmGenetyczny.genetyczny import (
     KnapsackItem, KnapsackGA, solve_knapsack_dp,
 )
 
@@ -181,7 +181,7 @@ def part4_training_set():
     print(" CZĘŚĆ 4.  ZBIÓR UCZĄCY sieci neuronowej  +  jej DECYZJE")
     print(LINE)
     try:
-        from app.core.decision_tree_agent import generate_dataset
+        from zadania.zadanie_5_DrzewoDecyzyjne.drzewo import generate_dataset
     except Exception as e:
         print(f" (pominięto — brak zależności ML: {e})")
         return
