@@ -1,0 +1,22 @@
+==============================================================================
+ POROWNANIE PRZEZYWALNOSCI LAZIKA  (10 losowych map / seed 1-10, maks 2000 krokow)
+==============================================================================
+
+Wariant                               sr.krok   min    max  przezyl       $   upg
+------------------------------------------------------------------------------
+Zadanie 3 (BFS),  z ulepszeniami          498    30   2000     1/10     440   1.7
+Zadanie 7 (A*),   z ulepszeniami          868    57   2000     3/10     591   3.1
+Zadanie 3 (BFS),  BEZ ulepszen            137    30    355     0/10     262   0.0
+Zadanie 7 (A*),   BEZ ulepszen            416    57   1151     0/10     645   0.0
+------------------------------------------------------------------------------
+
+Legenda:
+  sr.krok = sredni krok, na ktorym lazik zginal (2000 = dozyl do konca)
+  przezyl = ile z 10 przebiegow dotrwalo do limitu 2000 krokow
+  $       = sredni budzet na koniec,  upg = srednia liczba kupionych ulepszen
+
+Wnioski:
+  - A* (zad.4-7) planuje tansze trasy niz BFS (zad.3) -> mniejsze zuzycie energii
+    -> lazik zyje dluzej. BFS ignoruje koszt kafli, wiec ginie wczesniej.
+  - Ulepszenia ze sklepu (bateria/panele/silnik) wyraznie wydluzaja przezycie:
+    petla ekonomiczna (plecak GA -> sprzedaz -> ulepszenia) sama sie wzmacnia.

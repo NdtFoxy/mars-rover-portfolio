@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "generated_by": "navigate.py",
+  "selected_task": "project-7-genetic-algorithms",
+  "project_number": 7,
+  "task_title": "Zadanie projektowe 7: Algorytmy genetyczne",
+  "algorithm": "Genetic Algorithm (GA)",
+  "algorithm_description": "Evolves candidate solutions through selection, crossover, and mutation.",
+  "source_pdf": "genetic-algorithms.pdf",
+  "planned_command": "python zadania/zadanie_7_AlgorytmGenetyczny/uruchom.py",
+  "restart_required": false,
+  "settings": {
+    "model_name": "knapsack_ga_v1",
+    "endpoint": "http://127.0.0.1:8000",
+    "max_steps": 25,
+    "dry_run": true,
+    "auto_open_dashboard": false,
+    "notes": []
+  },
+  "future_settings": [
+    "population_size",
+    "generations",
+    "mutation_rate",
+    "capacity"
+  ]
+}

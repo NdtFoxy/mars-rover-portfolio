@@ -40,9 +40,8 @@ yarn-error.log*
 .DS_Store
 #/frontend_ue
 
-# Local mission selection (written by navigate.py)
-backend/mission_config.json
-mission_config.json
+# Stray root-level mission config (legacy path); backend/mission_config.json IS tracked
+/mission_config.json
 
 # Generated ML artifacts (regenerated at server start / task run)
 backend/rover_training_data.csv
