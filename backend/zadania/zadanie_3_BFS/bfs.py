@@ -12,7 +12,7 @@ Stan ma postać `(x, y, kierunek)`, a dostępne akcje to `MOVE_FORWARD`,
 `TURN_LEFT` и `TURN_RIGHT`.
 """
 from collections import deque
-from typing import List, Optional, Dict
+from typing import List, Dict
 from app.core.environment import Environment
 
 

@@ -1,5 +1,4 @@
 import random
-import copy
 from typing import List, Tuple, Dict, Any, Set
 from .genetic_map import generate_optimal_map
 

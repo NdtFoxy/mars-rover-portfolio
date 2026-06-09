@@ -202,3 +202,70 @@ This document tracks the individual contributions of team members for the "Auton
 *   **Zarządzanie wersjami projektu (Git) oraz prezentacja:**
     *   Wersje utrzymywane jako gałęzie/tagi: `wersja-algorytm-genetyczny` (plecak/sklep) oraz `wersja-siec-cnn` (wariant z kamerą CNN). Umożliwia to oddzielną prezentację każdego zadania prowadzącemu.
     *   Skrypt `demo_genetyczny.py` — prezentacja algorytmu genetycznego (zbiór danych, operatory ewolucyjne, decyzja GA vs DP) krok po kroku.
+
+---
+
+# 🛰️ Wkład indywidualny członków zespołu (zadania 1–7)
+
+**Zespół:** Mykyta Kyslytsia `s498817` (Team Lead — architektura backendu/API, ML, infrastruktura) · Aliaksandra `s498793` (logika domenowa i algorytmy) · Artem `s500690` (Unreal Engine 5 oraz sieć neuronowa CNN + MLP)
+
+## Zadanie 1 — Środowisko działania agenta
+
+**🛠 Mykyta:** Założył strukturę repozytorium, `.gitignore`, `CONTRIBUTING.md` i workflow Git Flow (branże, conventional commits, Pull Requesty). Postawił szkielet serwera **FastAPI** oraz modele **Pydantic** (`GameState`, `Position`) jako kontrakt wymiany danych Python ↔ UE5; przygotował stuby API, by zespół frontendu mógł integrować się przed ukończeniem logiki domenowej.
+
+**🧠 Aliaksandra:** Zaimplementowała klasę `Environment` (krata 2D `width × height`) z walidacją granic (`is_within_bounds`) oraz klasę `Agent` (pozycja `x`, `y`, metoda `move` bez teleportacji, walidacja współrzędnych). Opracowała algorytm `move_randomly` (Up/Down/Left/Right) do autonomicznej nawigacji w granicach świata.
+
+**🎮 Artem:** Zbudował środowisko 3D w UE5 z dyskretną wizualizacją kraty (`BP_GridManager`), skonfigurował łazika jako Pawn (`BP_MarsRover`) z kamerą TPP. Zaimplementował asynchroniczne zapytania HTTP (VaRest), parsowanie JSON (współrzędne `x`, `y`), mapowanie indeksów kraty na World Space, płynny ruch (`MoveComponentTo`) i proceduralny spawn przeszkód.
+
+## Zadanie 2 — Reprezentacja wiedzy
+
+**🛠 Mykyta:** Rozbudował REST API o pełny cykl symulacji (`GET /state`, `POST /step`, `POST /restart`) i globalne zarządzanie stanem między bezstanowymi żądaniami HTTP. Zaprojektował serializację JSON pakującą telemetrię agenta, stan środowiska, kratę 2D i obiekty semantyczne w jednolitą „sieć semantyczną”; skonfigurował **CORS** i dokumentację Swagger (`/docs`).
+
+**🧠 Aliaksandra:** Zbudowała hierarchię OOP obiektów semantycznych (`GameObject` → `Mineral`, `ChargingStation`) wraz z „inteligentnym” rozmieszczaniem na przejezdnym piasku. Zaimplementowała fizykę baterii zależną od terenu (piasek `−2.0`, góry `−6.0`), maszynę stanów (`IDLE/MOVING/CHARGING/DEAD`), wydobycie, dokowanie i ładowanie słoneczne (model sinusoidalny) oraz dynamiczny cykl dnia/nocy i pogodę z wagami prawdopodobieństwa.
+
+**🎮 Artem:** Zaimplementował w UE5 cykl dnia/nocy reagujący na `time_of_day` z API oraz efekty pogodowe (burze, mgła). Zintegrował modele 3D obiektów semantycznych (Tytan, Lód Wodny, Hematyt, stacje ładowania) i proceduralny spawn meshy wg współrzędnych z backendu. Stworzył pierwszą wersję HUD (bateria, status, ekwipunek, pogoda, godzina).
+
+## Zadanie 3 — Niepoinformowane przeszukiwanie (BFS)
+
+**🛠 Mykyta:** Dostosował API do planowania trasy — rozszerzył modele `Pydantic` (`AgentState`) o orientację kierunkową (`N/E/S/W`) i kolejkę akcji (`current_plan`); przepisał endpoint `/step` na funkcję kognitywną `follow_plan_or_search` zamiast ruchu losowego. Równolegle przeprowadził **migrację DVC z Google Drive na Backblaze S3** i napisał skrypt onboardingowy `setup_s3.py`.
+
+**🧠 Aliaksandra:** Zaimplementowała `bfs_find_path` ściśle wg schematu przeszukiwania grafu: kolejka FIFO (lista **OPEN**) i zbiór **CLOSED** przeciw cyklom; akcje atomowe `MOVE_FORWARD`, `TURN_LEFT`, `TURN_RIGHT`. Rozbudowała „mózg” agenta o autonomiczne celowanie BFS w minerały, kolejkowy plan wykonania (`current_plan`) i fizykę kierunkową (obrót `0.5`, ruch `2.0` energii).
+
+**🎮 Artem:** Rozbudował łazika w UE5 o ruch zależny od orientacji (interpolacja obrotu przy skręcaniu), zmapował dyskretne akcje API na płynne animacje 3D (timeline) i zsynchronizował UI z bieżącym kursem oraz kolejką planu.
+
+## Zadanie 4 — Poinformowane przeszukiwanie (A*)
+
+**🧠 Aliaksandra:** Zaimplementowała `astar_find_path` — kopiec priorytetowy, funkcja `f = g + h`, heurystyka Manhattan (dopuszczalna) oraz zróżnicowane koszty kafli (`TERRAIN_COSTS`: piasek `2.0`, skała `6.0`, obrót `0.5`).
+
+**🛠 Mykyta:** Zintegrował A\* z agentem (używany we wszystkich trybach poza zadaniem 3), dodał porównanie efektywności A\* vs BFS (liczba rozwiniętych węzłów, koszt energetyczny) i obsłużył wynik w API/serializacji.
+
+**🎮 Artem:** Zwizualizował w UE5 najtańszą ścieżkę wyznaczoną przez A\* i prezentację kosztu energetycznego trasy w HUD (spójnie z systemem ruchu z zadania 3).
+
+## Zadanie 5 — Drzewa decyzyjne (ID3)
+
+**🧠 Aliaksandra:** Zaimplementowała uczenie drzewa ID3 (`generate_dataset`, `train_tree`) na zbiorze **300 przykładów** opisanych **8 atrybutami** oraz wizualizację wyuczonego drzewa (`drzewo.png`, `reguly.txt`).
+
+**🛠 Mykyta:** Zintegrował drzewo decyzyjne z działającym agentem jako bazowy „mózg” (decyzja `GO_TO_CHARGE` / `CONTINUE_MINING`), rozbudował telemetrię i skalibrował progi/poziomy drzewa (m.in. dostrojenie z 45% → 25%); zapewnił uczenie drzewa przy każdym starcie serwera.
+
+**🎮 Artem:** Wyprowadził decyzję sieci/drzewa na HUD (pole „AI Status” / `nn_thought`) oraz interaktywny skaner kamery wizualizujący typ terenu pod łazikiem.
+
+## Zadanie 6 — Sieci neuronowe (CNN + MLP)
+
+**🎮 Artem:** Przeprowadził kluczowy upgrade — z perceptronu na **multimodalną sieć `MissionControlCNN`**: gałąź **CNN** (`Conv2d` + `MaxPool2d`) dla obrazu z kamery UE5 + gałąź **MLP** dla 7 cech telemetrii, z **fuzją cech**. Zbudował bazę realnych zrzutów `ue5_photos/` i zastosował **augmentację** (`torchvision.transforms`) spełniającą wymóg **≥1000/klasę** (>2000 próbek z 75 kadrów); wdrożył **inference na żywo** (próbkowanie kadru pod łazikiem) oraz moduł AI-nawigatora z hot-reload.
+
+**🛠 Mykyta:** Zaimplementował pierwszą wersję klasyfikatora neuronowego i skrypt treningowy (generacja i **balansowanie zbioru** `rover_training_data.csv`), dostroił inference serią poprawek i zoptymalizował generację map (cache). Zintegrował leniwe trenowanie sieci tylko przy aktywnym zadaniu 6.
+
+**🧠 Aliaksandra:** Dostarczyła generator map z oceną przejezdności (pathfinding), zapewniający różnorodne scenariusze wykorzystywane przy budowie zbioru uczącego.
+
+## Zadanie 7 — Algorytmy genetyczne (problem plecakowy)
+
+**🛠 Mykyta:** Zaprojektował i zaimplementował **`KnapsackGA`**: selekcja ruletkowa, krzyżowanie jednopunktowe, mutacja bitowa, elityzm; rozszerzył problem do **wielowymiarowego** (waga + objętość). Dodał walidację przez dokładny solver **DP** (GA = optimum, gap 0.00%), **sklep z 6 ulepszeniami (z debuffami)** i domknął pętlę ekonomiczną *wydobycie → sprzedaż → ulepszenie → większy plecak*. Przygotował `demo_genetyczny.py` (operatory krok po kroku).
+
+**🧠 Aliaksandra:** Stworzyła wcześniejszy generator map oparty na algorytmie genetycznym z ewaluacją przez pathfinding — pierwsze zastosowanie operatorów ewolucyjnych w projekcie, stanowiące bazę pod GA plecakowy.
+
+**🎮 Artem:** Wyprowadził na HUD bieżący plan plecakowy (`last_knapsack`: liczba sztuk, wartość, waga) i interfejs sklepu z ulepszeniami; usunął zakleszczenie (deadlock) w logice wyznaczania trasy łazika.
+
+Dodatkowo przeprowadził **migrację klienta UE5 na architekturę hybrydową C++ + Blueprints**: warstwa Blueprintów pełni odtąd wyłącznie rolę dekoratora widoku (spawn i wizualizacja), a całość obliczeń, matematyki i parsowania danych sieciowych przeniósł do wydajnej warstwy **C++** (z pomocniczym mostem GPU). Zaimplementował bibliotekę `UAresTimeLibrary` (`UBlueprintFunctionLibrary`):
+- **`ProcessTelemetryWithCuda`** — pełne parsowanie surowego JSON z backendu po stronie CPU/C++ do czystych struktur `USTRUCT` (`FAresAgentState`, `FAresEnvironmentState`, `FAresObjectState`): agent, środowisko, obiekty dynamiczne, sklep, aktywne zadanie (`mission`) i krata.
+- **Składanie danych dla HUD w C++** — łączenie tablic `inventory` i `current_plan` w gotowe stringi, automatyczne budowanie opisu sklepu (`UPGRADE SHOP`) oraz opisu aktywnego zadania (`ACTIVE TASK`), z bezpieczną obsługą pól `null` (np. `energy_pool`).
+- **Most GPU/CUDA** — przeniesienie ciężkiego wyliczania transformacji ~300 kafli kraty na GPU (`RunCudaGridCalculation`) z czystym fallbackiem C++; pomocnicze funkcje `ProcessTimeOfDay`/`ConvertTimeInternal` (czas nieba UDS), `CalculateTileTransform` i `GetTileVisuals` (skala/offset kafla wg typu terenu).

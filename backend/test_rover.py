@@ -15,7 +15,7 @@ import traceback
 
 import app.core.agent as agent_module
 from app.core.environment import Environment, Mineral, ChargingStation, MATERIAL_SPECS, MINERAL_TYPES
-from app.core.agent import Agent, MIN_MINERAL_WEIGHT, MIN_MINERAL_VOLUME
+from app.core.agent import Agent
 from zadania.zadanie_7_AlgorytmGenetyczny.genetyczny import (
     KnapsackItem, solve_knapsack_dp, solve_knapsack_ga, compare_knapsack,
 )

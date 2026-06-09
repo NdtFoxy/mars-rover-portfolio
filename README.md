@@ -81,22 +81,9 @@ Version Control: Git (Gitea).
       </blockquote>
     </details>
     <details>
-      <summary>🟨 <kbd>📁 frontend_backup</kbd> ── <i>React Web Grid 💻</i></summary>
-      <blockquote>
-        🔸 <code>📁 public/</code> & <code>📁 src/</code> ── UI source code & React components<br>
-        🔸 <code>📁 node_modules/</code> ── Web dependencies<br>
-        🔸 <code>📄 index.html</code> ── Dashboard entry point<br>
-        🔸 <code>📄 package.json</code> ── Node packages<br>
-        🔸 <code>📄 tsconfig.*.json</code> ── TypeScript strict typing rules<br>
-        🔸 <code>📄 vite.config.ts</code> ── Web bundler config (Runs on port 5173)
-      </blockquote>
-    </details>
-    <details>
       <summary>🖼️ <kbd>📁 assets</kbd> ── <i>Media 📸</i></summary>
       <blockquote>
-        🔸 <code>🖼️ banner.png</code> ── Mission patch / Banner<br>
-        🔸 <code>🖼️ banner-2.jpg</code> ── Alternative banner<br>
-        🔸 <code>📄 index.html</code> ── Asset viewer index
+        🔸 <code>🖼️ banner-2.jpg</code> ── Mission patch / Banner
       </blockquote>
     </details>
     <details open>
@@ -166,43 +153,18 @@ The core simulation logic runs on a FastAPI server.
 We use **DVC (Data Version Control)** to manage heavy 3D assets (textures, models) without bloating the Git repository.
 
 > [!CAUTION]
-> **Cloud Storage Access Required:** The project uses an encrypted Google Drive remote. To access the heavy assets, you need the service account credentials.
+> **Cloud Storage Access Required:** The project uses a Backblaze B2 (S3-compatible) remote. To access the heavy assets, you need the application key.
 
 ### Accessing Assets:
-1. **Request Credentials:** If you are a team member, email the Lead Developer (Mykyta) at **[mykkys@st.amu.edu.pl](mailto:mykkys@st.amu.edu.pl)** to request the necessary JSON keys.
-2. **Setup:** Place the key file in the root folder, then configure DVC locally:
+1. **Request Credentials:** If you are a team member, email the Lead Developer (Mykyta) at **[mykkys@st.amu.edu.pl](mailto:mykkys@st.amu.edu.pl)** to request the Backblaze application key.
+2. **Setup:** Run the helper script and paste the key when prompted (it configures the `s3remote` locally):
    ```sh
-   dvc remote modify --local myremote gdrive_client_id <CLIENT_ID>
-   dvc remote modify --local myremote gdrive_client_secret <CLIENT_SECRET>
+   python setup_s3.py
    ```
 3. **Pull Assets:** Once configured, download all assets with:
    ```sh
    dvc pull
    ```
-
----
-
-## 🌐 Frontend Control Panel (React)
-
-For real-time agent monitoring, we use a React-based dashboard. Ensure you have **[Node.js](https://nodejs.org/en)** installed.
-
-1. Navigate to the React directory:
-   ```sh
-   cd frontend_backup
-   ```
-
-2. Install dependencies:
-   ```sh
-   npm install
-   ```
-
-3. Run the development server:
-   ```sh
-   npm run dev
-   ```
-
-> [!TIP]
-> The Web UI will be available at **[http://localhost:5173](http://localhost:5173)**, providing a dashboard to monitor the agent's real-time state.
 
 ---
 

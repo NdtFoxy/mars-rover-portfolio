@@ -16,7 +16,6 @@ Atrybuty agenta modyfikowane przez sklep:
 """
 
 from typing import Dict, List, Any, Optional
-from .environment import MATERIAL_SPECS
 
 # =====================================================================
 # KATALOG ULEPSZEŃ. Koszt poziomu = pieniądze ($) + materiały.
@@ -110,14 +109,6 @@ def can_afford(agent, upgrade_id: str) -> bool:
         if counts.get(mat, 0) < qty:
             return False
     return True
-
-
-def materials_needed_for(agent, upgrade_id: Optional[str]) -> Dict[str, int]:
-    """Materiały wymagane na następny poziom danego ulepszenia (do rezerwacji)."""
-    if upgrade_id is None:
-        return {}
-    cost = next_level_cost(upgrade_id, agent)
-    return dict(cost["materials"]) if cost else {}
 
 
 def next_target_upgrade(agent) -> Optional[str]:

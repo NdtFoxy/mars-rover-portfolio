@@ -1,7 +1,7 @@
 import random
 import copy
 import heapq
-from typing import List, Tuple
+from typing import List
 
 class MapChromosome:
     """

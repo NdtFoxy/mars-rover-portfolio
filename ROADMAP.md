@@ -61,7 +61,7 @@ The assignment requires implementing *Frames (Ramy)*, *Semantic Networks (Sieci 
       ]
     }
     ```
-3.  **React Dashboard:** Update `frontend_backup` to visualize this JSON in real-time as a web control panel.
+3.  **React Dashboard:** Build a React control panel to visualize this JSON in real-time as a web dashboard.
 
 ### 🎮 Artem (Unreal Engine 5 Frontend)
 **Goal:** Visualize the Knowledge Representation and build the in-game HUD based on Figma designs.

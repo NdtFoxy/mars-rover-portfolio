@@ -17,7 +17,7 @@ Uruchomienie (z katalogu backend/):
 """
 
 import random
-from app.core.environment import MATERIAL_SPECS, MINERAL_TYPES
+from app.core.environment import MATERIAL_SPECS
 from zadania.zadanie_7_AlgorytmGenetyczny.genetyczny import (
     KnapsackItem, KnapsackGA, solve_knapsack_dp,
 )

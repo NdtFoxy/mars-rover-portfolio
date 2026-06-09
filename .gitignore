@@ -43,3 +43,8 @@ yarn-error.log*
 # Local mission selection (written by navigate.py)
 backend/mission_config.json
 mission_config.json
+
+# Generated ML artifacts (regenerated at server start / task run)
+backend/rover_training_data.csv
+backend/nn_model_report.txt
+backend/decision_tree.png
