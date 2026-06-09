@@ -1,0 +1,20 @@
+DECYZJA: wyuczone drzewo decyzyjne (ID3 / przyrost informacji)
+Zbior uczacy: 300 przykladow, 8 atrybutow
+Klasy decyzji: ['CONTINUE_MINING', 'GO_TO_CHARGE']
+
+|--- battery_level <= 60.07
+|   |--- weather_multiplier <= 0.65
+|   |   |--- class: GO_TO_CHARGE
+|   |--- weather_multiplier >  0.65
+|   |   |--- battery_level <= 49.33
+|   |   |   |--- solar_efficiency <= 0.33
+|   |   |   |   |--- class: GO_TO_CHARGE
+|   |   |   |--- solar_efficiency >  0.33
+|   |   |   |   |--- class: CONTINUE_MINING
+|   |   |--- battery_level >  49.33
+|   |   |   |--- class: CONTINUE_MINING
+|--- battery_level >  60.07
+|   |--- inventory_fill_ratio <= 0.95
+|   |   |--- class: CONTINUE_MINING
+|   |--- inventory_fill_ratio >  0.95
+|   |   |--- class: GO_TO_CHARGE

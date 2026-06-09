@@ -1,0 +1,6 @@
+DECYZJA: wybor minerlow przez algorytm genetyczny (ruletka + krzyzowanie + mutacja)
+
+GA  -> wartosc $250, waga 19 kg, objetosc 10 l, przedmioty: ['Titanium', 'Titanium', 'Water Ice']
+DP  -> wartosc $250 (rozwiazanie dokladne, wzorzec optymalnosci)
+
+GA == OPTIMUM: TAK

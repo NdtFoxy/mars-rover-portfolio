@@ -1,0 +1,16 @@
+DANE WEJSCIOWE (Zadanie 7 - problem plecakowy)
+Limity plecaka: waga <= 20 kg ORAZ objetosc <= 16 l
+
+ #  Mineral      waga  objetosc  wartosc
+ 1  Titanium       8kg       2l     $100
+ 2  Water Ice      3kg       6l      $50
+ 3  Hematite       5kg       4l      $30
+ 4  Water Ice      3kg       6l      $50
+ 5  Titanium       8kg       2l     $100
+ 6  Hematite       5kg       4l      $30
+ 7  Water Ice      3kg       6l      $50
+ 8  Titanium       8kg       2l     $100
+ 9  Hematite       5kg       4l      $30
+10  Water Ice      3kg       6l      $50
+
+Suma wag = 51 kg, suma objetosci = 42 l (wiecej niz limity -> trzeba wybierac).

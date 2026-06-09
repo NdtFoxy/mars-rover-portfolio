@@ -1,0 +1,5 @@
+DECYZJA: najtansza sciezka znaleziona przez A* (koszt + heurystyka)
+Koszt energetyczny sciezki: 25.5
+Rozwiniete wezly: A*=209  vs  BFS=540  (A* przeszukuje mniej dzieki heurystyce)
+
+TURN_LEFT -> MOVE_FORWARD -> MOVE_FORWARD -> TURN_LEFT -> MOVE_FORWARD -> MOVE_FORWARD -> MOVE_FORWARD -> TURN_RIGHT -> MOVE_FORWARD -> MOVE_FORWARD -> MOVE_FORWARD -> MOVE_FORWARD -> MOVE_FORWARD

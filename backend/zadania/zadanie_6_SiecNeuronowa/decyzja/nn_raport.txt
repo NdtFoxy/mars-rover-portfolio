@@ -1,0 +1,37 @@
+================================================================================
+  SZCZEGÓŁOWY RAPORT DIAGNOSTYCZNY MODELU SIECI NEURONOWEJ (ARES-ML)
+================================================================================
+
+[1. METRYKI KLASYFIKACJI WALIDACYJNEJ]:
+
+                 precision    recall  f1-score   support
+
+   GO_TO_CHARGE       0.96      0.95      0.95       204
+CONTINUE_MINING       0.94      0.95      0.95       196
+
+       accuracy                           0.95       400
+      macro avg       0.95      0.95      0.95       400
+   weighted avg       0.95      0.95      0.95       400
+
+
+================================================================================
+[2. SYMULACJA SCENARIUSZY TESTOWYCH - ANALIZA BEZPIECZEŃSTWA]:
+
+Scenariusz 1: Pełna bateria, blisko minerał, daleka baza
+  Wejście: Bat=90.0%, DystStacja=20.0, Plecak=20%, Środowisko: SAND
+  Decyzja Sieci: CONTINUE_MINING
+--------------------------------------------------
+Scenariusz 2: Słaba bateria (30%), stacja bardzo daleko (18 pól) -> Krytyczny powrót
+  Wejście: Bat=30.0%, DystStacja=18.0, Plecak=10%, Środowisko: SAND
+  Decyzja Sieci: GO_TO_CHARGE
+--------------------------------------------------
+Scenariusz 3: Średnia bateria (40%), stacja blisko (5 pól) -> Bezpieczna regeneracja
+  Wejście: Bat=40.0%, DystStacja=5.0, Plecak=50%, Środowisko: ROCK
+  Decyzja Sieci: GO_TO_CHARGE
+--------------------------------------------------
+Scenariusz 4: Bateria 80%, pełny plecak (~100%) -> Nakaz powrotu do bazy i sprzedaży
+  Wejście: Bat=80.0%, DystStacja=10.0, Plecak=97%, Środowisko: BASE
+  Decyzja Sieci: GO_TO_CHARGE
+--------------------------------------------------
+
+[KONIEC RAPORTU]

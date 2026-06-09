@@ -1,0 +1,5 @@
+DECYZJA: najkrotsza sciezka znaleziona przez BFS (liczba akcji)
+Akcje: 13 (ruchy do przodu: 10)
+Rozwiniete wezly (koszt obliczen): 540
+
+TURN_LEFT -> TURN_LEFT -> MOVE_FORWARD -> MOVE_FORWARD -> MOVE_FORWARD -> TURN_RIGHT -> MOVE_FORWARD -> MOVE_FORWARD -> MOVE_FORWARD -> MOVE_FORWARD -> MOVE_FORWARD -> MOVE_FORWARD -> MOVE_FORWARD
