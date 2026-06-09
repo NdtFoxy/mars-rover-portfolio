@@ -7,7 +7,8 @@ from typing import List, Dict, Any, Optional
 from PIL import Image
 import torchvision.transforms as transforms
 from .environment import Environment, ChargingStation, Mineral, MATERIAL_SPECS, MINERAL_TYPES
-from .search import astar_find_path, TERRAIN_COSTS, TURN_COST
+from .search import astar_find_path, bfs_find_path, TERRAIN_COSTS, TURN_COST
+from .mission import get_active_task
 from .knapsack import items_from_minerals, solve_knapsack_ga, solve_knapsack_dp
 from . import shop
 
@@ -203,7 +204,7 @@ class Agent:
         ]
         candidates = sorted(self.mining_manifest, key=lambda m: abs(self.x - m.x) + abs(self.y - m.y))
         for m in candidates:
-            path = astar_find_path(self.x, self.y, self.direction, m.x, m.y, env)
+            path = self._find_path(m.x, m.y, env)
             if path is not None:
                 return path
             
@@ -235,7 +236,7 @@ class Agent:
             candidates = bases + chargers
 
         for o in candidates:
-            path = astar_find_path(self.x, self.y, self.direction, o.x, o.y, env)
+            path = self._find_path(o.x, o.y, env)
             if path is not None:
                 return path
                 
@@ -245,10 +246,16 @@ class Agent:
         stations = [s for s in env.objects if s.is_active and s.type == "ChargingStation"]
         stations.sort(key=lambda s: abs(self.x - s.x) + abs(self.y - s.y))
         for s in stations:
-            path = astar_find_path(self.x, self.y, self.direction, s.x, s.y, env)
+            path = self._find_path(s.x, s.y, env)
             if path is not None:
                 return path
         return None
+
+    def _find_path(self, gx: int, gy: int, env: Environment) -> Optional[List[str]]:
+        """Wybór algorytmu wg aktywnego zadania: Zadanie 3 -> BFS, pozostałe -> A*."""
+        if get_active_task().get("selected_task") == "project-3-uninformed-search":
+            return bfs_find_path(self.x, self.y, self.direction, gx, gy, env)
+        return astar_find_path(self.x, self.y, self.direction, gx, gy, env)
 
     def _needs_emergency_charge(self, env: Environment) -> bool:
         stations = [s for s in env.objects if s.is_active and s.type == "ChargingStation"]

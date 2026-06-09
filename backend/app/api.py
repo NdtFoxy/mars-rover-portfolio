@@ -21,7 +21,7 @@ from .models import GameState
 from .core.environment import Environment, MINERAL_TYPES
 from .core.agent import Agent
 from .core.decision_tree_agent import generate_dataset
-from .core import shop
+from .core import shop, mission
 from .core.knapsack import items_from_minerals, compare_knapsack
 
 router = APIRouter()
@@ -505,7 +505,8 @@ async def get_current_state():
         },
         grid=env_dict["grid"],
         objects=env_dict["objects"],
-        shop=shop.get_shop_state(agent)
+        shop=shop.get_shop_state(agent),
+        mission=mission.active_task_summary()
     )
 
 @router.post("/step", response_model=GameState)
@@ -571,3 +572,18 @@ async def knapsack_compare():
     rem_w = max(0.0, agent.capacity - agent.current_weight())
     rem_v = max(0.0, agent.volume_capacity - agent.current_volume())
     return compare_knapsack(items, rem_w, rem_v)
+
+# =====================================================================
+# MISJA: aktywne zadanie dla Unreal Engine + przeładowanie (Alt+R / UE5)
+# =====================================================================
+@router.get("/mission")
+async def get_mission():
+    """Pełne dane aktualnie wybranego zadania (z mission_config.json)."""
+    return mission.get_active_task()
+
+@router.post("/mission/reload")
+async def reload_mission():
+    """Przeładowuje wybór z navigate.py (Alt+R w run.py lub przycisk w UE5)."""
+    data = mission.reload_active_task()
+    print(f"[MISSION] Przeladowano zadanie -> {data.get('selected_task')} | {data.get('task_title')}")
+    return {"reloaded": True, "mission": mission.active_task_summary()}

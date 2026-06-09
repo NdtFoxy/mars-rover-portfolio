@@ -52,3 +52,4 @@ class GameState(BaseModel):
     grid: List[List[int]]          # <-- Массив массивов (Песок и Горы)
     objects: List[GameObjectState]
     shop: List[ShopItemState] = []
+    mission: Dict[str, Any] = {}   # aktywne zadanie (dla Unreal Engine)
