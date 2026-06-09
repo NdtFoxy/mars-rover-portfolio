@@ -54,48 +54,51 @@ def astar_find_path(start_x: int, start_y: int, start_dir: str, goal_x: int, goa
     """
     start_state = (start_x, start_y, start_dir)
 
+    # OPEN = kopiec priorytetowy uporzadkowany wg f = g + h (zawsze rozwijamy najtanszy wezel).
     open_heap = []
-    heapq.heappush(open_heap, (0, 0, start_state))
+    heapq.heappush(open_heap, (0, 0, start_state))   # (f, g, stan)
 
-    g_score = {start_state: 0.0}
-    came_from = {}
-    expanded = 0
+    g_score = {start_state: 0.0}   # najlepszy znany koszt dotarcia do danego stanu
+    came_from = {}                 # poprzednik + akcja -> do odtworzenia trasy
+    expanded = 0                   # licznik rozwinietych wezlow (A* rozwija ich mniej niz BFS)
 
     dirs = ['N', 'E', 'S', 'W']
     offsets = {'N': (0, -1), 'E': (1, 0), 'S': (0, 1), 'W': (-1, 0)}
 
     while open_heap:
-        current_f, current_g, current_state = heapq.heappop(open_heap)
+        current_f, current_g, current_state = heapq.heappop(open_heap)   # wezel o najmniejszym f
         cx, cy, cdir = current_state
 
-        if cx == goal_x and cy == goal_y:
+        if cx == goal_x and cy == goal_y:           # cel -> A* gwarantuje optimum (h dopuszczalna)
             path = reconstruct_path(came_from, current_state)
             return (path, expanded) if return_stats else path
 
+        # Pomijamy "przeterminowany" wpis w kopcu (trafil tu z gorszym g niz aktualnie znany).
         if current_g > g_score.get(current_state, float('inf')):
             continue
         expanded += 1
 
+        # Nastepniki = te same 3 akcje co w BFS, ale KAZDA ma swoj KOSZT (g rosnie inaczej):
         idx = dirs.index(cdir)
         successors = []
-        successors.append(((cx, cy, dirs[(idx - 1) % 4]), "TURN_LEFT", TURN_COST))
-        successors.append(((cx, cy, dirs[(idx + 1) % 4]), "TURN_RIGHT", TURN_COST))
+        successors.append(((cx, cy, dirs[(idx - 1) % 4]), "TURN_LEFT", TURN_COST))   # obrot = 0.5
+        successors.append(((cx, cy, dirs[(idx + 1) % 4]), "TURN_RIGHT", TURN_COST))  # obrot = 0.5
 
         dx, dy = offsets[cdir]
         nx, ny = cx + dx, cy + dy
         if env.is_within_bounds(nx, ny):
             terrain_type = env.get_terrain_type(nx, ny)
-            if terrain_type != 2:  # kratery są przeszkodą nie do przejścia
-                # Kratery blokują ruch.
-                # Кратеры блокируют движение.
+            if terrain_type != 2:  # krater (typ 2) = sciana nie do przejscia
+                # Koszt ruchu zalezy od terenu: piasek 2.0, skala 6.0 -> A* omija drogie skaly.
                 forward_cost = TERRAIN_COSTS.get(terrain_type, 100.0)
                 successors.append(((nx, ny, cdir), "MOVE_FORWARD", forward_cost))
 
         for next_state, action, action_cost in successors:
-            tentative_g = current_g + action_cost
-            if tentative_g < g_score.get(next_state, float('inf')):
+            tentative_g = current_g + action_cost           # koszt dotarcia przez biezacy wezel
+            if tentative_g < g_score.get(next_state, float('inf')):   # znalezlismy tansza droge?
                 came_from[next_state] = (current_state, action)
                 g_score[next_state] = tentative_g
+                # f = dotychczasowy koszt g + szacowana odleglosc do celu h (Manhattan).
                 f = tentative_g + heuristic(next_state[0], next_state[1], goal_x, goal_y)
                 heapq.heappush(open_heap, (f, tentative_g, next_state))
 

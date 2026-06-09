@@ -222,15 +222,18 @@ class KnapsackGA:
         if self.n == 0:
             return KnapsackChromosome(0, randomize=False)
 
-        self.init_population()
-        best_overall: Optional[KnapsackChromosome] = None
+        self.init_population()                     # losowa populacja startowa (wektory bitow)
+        best_overall: Optional[KnapsackChromosome] = None   # najlepszy osobnik w calej historii
 
-        for gen in range(self.generations):
+        for gen in range(self.generations):        # glowna petla ewolucji (pokolenia)
+            # 1) OCENA: policz fitness (wartosc plecaka, z kara za przekroczenie limitow).
             for ind in self.population:
                 self.evaluate_fitness(ind)
 
+            # 2) Posortuj malejaco -> najlepsze osobniki na poczatku listy.
             self.population.sort(key=lambda c: c.fitness, reverse=True)
 
+            # Zapamietaj globalnie najlepsze rozwiazanie (zeby nigdy go nie zgubic).
             if best_overall is None or self.population[0].fitness > best_overall.fitness:
                 best_overall = copy.deepcopy(self.population[0])
 
@@ -239,23 +242,24 @@ class KnapsackGA:
                 print(f"[GA-KNAPSACK] Gen {gen:3d} | Best fit: "
                       f"{self.population[0].fitness:7.1f} | Avg: {avg:7.1f}")
 
+            # 3) Zbuduj nowe pokolenie.
             new_population: List[KnapsackChromosome] = []
-            # Elityzm -- najlepsze osobniki przechodzą bez zmian
-            # Элитизм -- лучшие особи переходят без изменений
+            # ELITYZM: 2 najlepsze osobniki przechodza bez zmian (ochrona najlepszego genu).
             new_population.append(copy.deepcopy(self.population[0]))
             if self.pop_size > 1:
                 new_population.append(copy.deepcopy(self.population[1]))
 
+            # Reszte populacji tworzymy z operatorow genetycznych:
             while len(new_population) < self.pop_size:
-                parent1 = self.roulette_wheel_selection()
+                parent1 = self.roulette_wheel_selection()   # SELEKCJA RULETKOWA (szansa ~ fitness)
                 parent2 = self.roulette_wheel_selection()
-                child = self.crossover(parent1, parent2)
-                self.mutate(child)
+                child = self.crossover(parent1, parent2)     # KRZYZOWANIE jednopunktowe
+                self.mutate(child)                           # MUTACJA bitowa (rozne rozwiazania)
                 new_population.append(child)
 
-            self.population = new_population
+            self.population = new_population        # nowe pokolenie zastepuje stare
 
-        return best_overall
+        return best_overall                        # zwroc najlepszy znaleziony podzbior mineralow
 
 
 def solve_knapsack_ga(items: List[KnapsackItem], cap_w: float, cap_v: float,

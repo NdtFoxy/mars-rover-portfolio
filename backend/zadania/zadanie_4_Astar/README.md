@@ -23,3 +23,26 @@
 ```sh
 python3 uruchom.py
 ```
+
+## Jak to działa krok po kroku (przepływ tam i z powrotem)
+1. Tak samo jak w zad. 3, ale `agent._find_path` wywołuje `astar_find_path(...)`.
+2. **Funkcja priorytetu** `f(n) = g(n) + h(n)`:
+   - `g(n)` = realny dotychczasowy koszt = suma `TERRAIN_COSTS` (piasek 2.0 / skała 6.0) + `TURN_COST` 0.5,
+   - `h(n)` = heurystyka = **odległość Manhattan** do celu.
+3. **OPEN = kopiec priorytetowy** (`heapq`): zawsze rozwijamy węzeł o najmniejszym `f`.
+4. A* preferuje tanie pola (piasek) i **omija drogie skały**, więc trasa jest tańsza energetycznie
+   niż „na ślepo” u BFS.
+5. Wynik (`decyzja/sciezka.txt`) pokazuje najtańszą ścieżkę, jej koszt energii oraz **porównanie
+   liczby rozwiniętych węzłów A\* vs BFS** (A\* rozwija ich mniej).
+6. Powrót do bazy/stacji liczony tym samym A* — dlatego łazik żyje dłużej niż na BFS (zad. 3).
+
+## Pytania prowadzącego (Q&A do obrony)
+- **Czym A\* różni się od BFS?** BFS ignoruje koszty (graf bez wag). A\* używa kosztu `g` i
+  heurystyki `h`, więc znajduje **najtańszą** trasę, a nie tylko najkrótszą w krokach.
+- **Dlaczego heurystyka Manhattan jest dopuszczalna (admissible)?** Bo na kracie z ruchem
+  w 4 kierunkach nigdy nie **przeszacowuje** realnego kosztu — dzięki temu A\* jest optymalny.
+- **Co, gdyby `h = 0`?** A\* degeneruje się do **algorytmu Dijkstry** (też optymalny, ale wolniejszy).
+- **Co, gdyby `h` przeszacowywała?** A\* przestaje być optymalny — może znaleźć droższą ścieżkę.
+- **Po co kopiec priorytetowy?** Żeby w `O(log n)` zawsze pobierać węzeł o najmniejszym `f`.
+- **Dlaczego A\* rozwija mniej węzłów niż BFS?** Heurystyka „kieruje” przeszukiwanie ku celowi,
+  zamiast rozlewać się równomiernie we wszystkie strony.

@@ -159,8 +159,10 @@ def train_tree(num_samples: int = 400, random_state: int = 42):
         df = generate_dataset(num_samples)
     finally:
         random.setstate(previous_random_state)
+    # criterion="entropy" -> podzial wg PRZYROSTU INFORMACJI (to jest istota ID3).
+    # max_depth=4 -> plytkie, czytelne drzewo (ogranicza przeuczenie, latwe do pokazania).
     clf = DecisionTreeClassifier(criterion="entropy", max_depth=4, random_state=42)
-    clf.fit(df[FEATURES], df["target_decision"])
+    clf.fit(df[FEATURES], df["target_decision"])   # uczenie na 8 cechach -> etykieta decyzji
     return clf, FEATURES
 
 

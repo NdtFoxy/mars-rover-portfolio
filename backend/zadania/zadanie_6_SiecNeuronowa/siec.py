@@ -68,25 +68,29 @@ def get_ue5_image(category: str, is_training: bool = True) -> torch.Tensor:
 class MissionControlCNN(nn.Module):
     def __init__(self, tabular_dim=7, output_dim=2):
         super(MissionControlCNN, self).__init__()
+        # GALAZ 1 (WIZJA): splotowa siec na obrazie 3x32x32 z kamery UE5.
+        # Conv2d wykrywa cechy przestrzenne (krawedzie, tekstury), MaxPool zmniejsza wymiar.
         self.cnn = nn.Sequential(
-            nn.Conv2d(in_channels=3, out_channels=16, kernel_size=3, padding=1),
+            nn.Conv2d(in_channels=3, out_channels=16, kernel_size=3, padding=1),   # 3 kanaly RGB -> 16 map cech
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2),
-            nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, padding=1),
+            nn.MaxPool2d(kernel_size=2),                                           # 32x32 -> 16x16
+            nn.Conv2d(in_channels=16, out_channels=32, kernel_size=3, padding=1),  # 16 -> 32 mapy cech
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2),
-            nn.Flatten()
+            nn.MaxPool2d(kernel_size=2),                                           # 16x16 -> 8x8
+            nn.Flatten()                                                          # 32*8*8 = 2048 liczb
         )
+        # GALAZ 2 (TELEMETRIA): maly MLP na 7 cechach liczbowych (bateria, dystanse, pogoda...).
         self.mlp = nn.Sequential(nn.Linear(tabular_dim, 16), nn.ReLU())
+        # FUZJA + KLASYFIKATOR: laczy 2048 (obraz) + 16 (telemetria) -> decyzja (2 klasy).
         self.classifier = nn.Sequential(
             nn.Linear(2048 + 16, 32), nn.ReLU(), nn.Linear(32, output_dim)
         )
 
     def forward(self, img_x, tab_x):
-        img_features = self.cnn(img_x)
-        tab_features = self.mlp(tab_x)
-        combined = torch.cat((img_features, tab_features), dim=1)
-        return self.classifier(combined)
+        img_features = self.cnn(img_x)     # cechy wizualne z kamery (2048)
+        tab_features = self.mlp(tab_x)     # cechy z telemetrii (16)
+        combined = torch.cat((img_features, tab_features), dim=1)   # FUZJA: sklej oba wektory
+        return self.classifier(combined)   # wynik: logity dla GO_TO_CHARGE / CONTINUE_MINING
 
 
 def generate_balanced_dataset(
