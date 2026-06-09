@@ -223,8 +223,13 @@ class Agent:
         rem_v = self.volume_capacity - self.current_volume()
         is_full = (rem_w < MIN_MINERAL_WEIGHT) or (rem_v < MIN_MINERAL_VOLUME * self.volume_factor)
 
-        candidates = []
-        if self.battery < 40.0 and not is_full:
+        # Priorytet celu zależy od POTRZEBY:
+        #  - pełny plecak -> najpierw BAZA (sprzedaż),
+        #  - słaba bateria -> najpierw ŁADOWARKA (baza nie ładuje!),
+        #  - w innym wypadku -> baza (sprzedaż / sklep).
+        if is_full:
+            candidates = bases + chargers
+        elif self.battery < 0.55 * self.max_battery:
             candidates = chargers + bases
         else:
             candidates = bases + chargers
@@ -237,7 +242,7 @@ class Agent:
         return None
 
     def _plan_to_station(self, env: Environment) -> Optional[List[str]]:
-        stations = [s for s in env.objects if s.is_active and s.type in ["ChargingStation", "ScienceBase"]]
+        stations = [s for s in env.objects if s.is_active and s.type == "ChargingStation"]
         stations.sort(key=lambda s: abs(self.x - s.x) + abs(self.y - s.y))
         for s in stations:
             path = astar_find_path(self.x, self.y, self.direction, s.x, s.y, env)
@@ -257,14 +262,20 @@ class Agent:
         if self.status == "DEAD":
             return
 
-        if self.charging_mode and self.battery >= 0.9 * self.max_battery:
+        if self.charging_mode and self.battery >= 0.8 * self.max_battery:
             self.charging_mode = False
         if self._needs_emergency_charge(env):
             self.charging_mode = True
 
+        # Trasa do stacji liczona tylko w trybie ładowania.
+        station_plan = self._plan_to_station(env) if self.charging_mode else None
+        if self.charging_mode and station_plan is None:
+            # Brak osiągalnej/aktywnej ładowarki -> nie zamarzaj na polu, wróć do normalnej pracy.
+            self.charging_mode = False
+
         if self.charging_mode:
             self.mining_manifest = []
-            self.current_plan = self._plan_to_station(env) or []
+            self.current_plan = station_plan or []
         elif not self.current_plan:
             if trained_nn is not None and scaler is not None and reverse_mapping is not None:
                 decision = self.decide_next_macro_action(env, trained_nn, scaler, reverse_mapping)
@@ -357,7 +368,7 @@ class Agent:
                 elif obj.type == "ChargingStation":
                     charge_needed = self.max_battery - self.battery
                     if charge_needed > 0 and obj.energy_pool > 0:
-                        charge_amount = min(10.0, obj.energy_pool, charge_needed)
+                        charge_amount = min(25.0, obj.energy_pool, charge_needed)
                         self.battery += charge_amount
                         obj.energy_pool -= charge_amount
                         self.status = "CHARGING"

@@ -70,6 +70,11 @@ class Environment:
     WEATHER_CONDITIONS = ["Clear_Skies", "Cloudy", "Partly_Cloudy", "Foggy", "Sand_Dust_Calm", "Sand_Dust_Storm"]
     WEATHER_WEIGHTS = [40, 15, 20, 10, 10, 5]
 
+    # Regeneracja energii stacji ładujących na krok (na stację). Reguluje TRUDNOŚĆ:
+    # 0.0 = hardcore (stacje wyczerpują się na stałe), ~1.5+ = łatwo (energia odnawialna).
+    # 0.5 = energia jest deficytowa, śmierć jest realna, ale nie ma wiecznego lockoutu.
+    CHARGER_REGEN: float = 0.5
+
     # Глобальный кэш класса для хранения сгенерированных карт определенных размеров
     _cached_grids: Dict[Tuple[int, int], List[List[int]]] = {}
 
@@ -110,7 +115,19 @@ class Environment:
         if self.step_counter % 8 == 0:
             self.weather = self._get_smooth_weather_transition(self.weather)
 
+        self._regenerate_chargers()
         self._respawn_minerals_if_needed()
+
+    def _regenerate_chargers(self, cap: float = 500.0) -> None:
+        # Stacje ładujące powoli odnawiają energię (regulowane przez CHARGER_REGEN).
+        amount = self.CHARGER_REGEN
+        if amount <= 0:
+            return
+        for obj in self.objects:
+            if obj.type == "ChargingStation":
+                obj.energy_pool = min(cap, obj.energy_pool + amount)
+                if obj.energy_pool > 0:
+                    obj.is_active = True
 
     def _respawn_minerals_if_needed(self) -> None:
         active_minerals = [obj for obj in self.objects if obj.type in ["Titanium", "Water Ice", "Hematite"] and obj.is_active]
