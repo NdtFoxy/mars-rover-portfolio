@@ -1,22 +1,49 @@
-==============================================================================
- POROWNANIE PRZEZYWALNOSCI LAZIKA  (10 losowych map / seed 1-10, maks 2000 krokow)
-==============================================================================
+====================================================================================
+ POROWNANIE PRZEZYWALNOSCI LAZIKA W ZADANIACH 3-7
+ (10 losowych map, seed 1-10, limit 2000 krokow; ulepzenia ZAWSZE wlaczone w grze)
+====================================================================================
 
-Wariant                               sr.krok   min    max  przezyl       $   upg
-------------------------------------------------------------------------------
-Zadanie 3 (BFS),  z ulepszeniami          498    30   2000     1/10     440   1.7
-Zadanie 7 (A*),   z ulepszeniami          868    57   2000     3/10     591   3.1
-Zadanie 3 (BFS),  BEZ ulepszen            137    30    355     0/10     262   0.0
-Zadanie 7 (A*),   BEZ ulepszen            416    57   1151     0/10     645   0.0
-------------------------------------------------------------------------------
+Zadanie / algorytm                sr.krok   min    max  przezyl       $   upg
+------------------------------------------------------------------------------------
+3 BFS  (Breadth-First Search)         498    30   2000     1/10     440   1.7
+4 A*   (A-star, koszt+heur.)          868    57   2000     3/10     591   3.1
+5 ID3  (drzewo decyzyjne)             868    57   2000     3/10     591   3.1
+6 CNN  (siec neuronowa)               868    57   2000     3/10     591   3.1
+7 GA   (algorytm genetyczny)          868    57   2000     3/10     591   3.1
+------------------------------------------------------------------------------------
 
-Legenda:
-  sr.krok = sredni krok, na ktorym lazik zginal (2000 = dozyl do konca)
-  przezyl = ile z 10 przebiegow dotrwalo do limitu 2000 krokow
-  $       = sredni budzet na koniec,  upg = srednia liczba kupionych ulepszen
+Ten sam test BEZ ulepszen (benchmark teoretyczny -- patrz uwaga nizej):
+------------------------------------------------------------------------------------
+3 BFS  (Breadth-First Search)         137    30    355     0/10     262   0.0
+4 A*   (A-star, koszt+heur.)          416    57   1151     0/10     645   0.0
+5 ID3  (drzewo decyzyjne)             416    57   1151     0/10     645   0.0
+6 CNN  (siec neuronowa)               416    57   1151     0/10     645   0.0
+7 GA   (algorytm genetyczny)          416    57   1151     0/10     645   0.0
+------------------------------------------------------------------------------------
 
-Wnioski:
-  - A* (zad.4-7) planuje tansze trasy niz BFS (zad.3) -> mniejsze zuzycie energii
-    -> lazik zyje dluzej. BFS ignoruje koszt kafli, wiec ginie wczesniej.
-  - Ulepszenia ze sklepu (bateria/panele/silnik) wyraznie wydluzaja przezycie:
-    petla ekonomiczna (plecak GA -> sprzedaz -> ulepszenia) sama sie wzmacnia.
+UWAGA -- 'z ulepszeniami' vs 'bez ulepszen':
+  W kodzie NIE MA flagi wlacz/wylacz sklep. Lazik ZAWSZE sam kupuje ulepszenia
+  na bazie (agent.py: petla shop.purchase_upgrade). Wariant 'BEZ ulepszen' to
+  tylko pomiar testowy: w benchmarku zablokowano wybor celu ulepszenia
+  (_get_valid_target_upgrade -> None), zeby pokazac SAM wplyw sklepu na misje.
+
+Dlaczego 4,5,6,7 maja podobne wyniki:
+  Wybor zadania zmienia tylko: (a) algorytm trasy -- BFS w zad.3, A* w zad.4-7;
+  (b) 'mozg' decyzji ladowac/kopac -- CNN w zad.6, drzewo ID3 w pozostalych.
+  Silnik energii/ekonomii jest wspolny, dlatego zad.4/5/7 daja te same liczby,
+  a zad.6 na zywo (CNN) decyduje prawie identycznie jak drzewo.
+
+====================================================================================
+ WSPOLCZYNNIKI TRUDNOSCI ENERGETYCZNEJ (skad pochodza)
+====================================================================================
+  Koszt ruchu po PIASKU      = 2.0   <- zadania/zadanie_4_Astar/astar.py: TERRAIN_COSTS[0]
+  Koszt ruchu po SKALE       = 6.0   <- zadania/zadanie_4_Astar/astar.py: TERRAIN_COSTS[1]
+  Koszt OBROTU               = 0.5   <- zadania/zadanie_4_Astar/astar.py: TURN_COST
+  Mnoznik silnika            = motor_efficiency (bazowo 1.0)  <- app/core/agent.py
+       kazdy koszt energii * motor_efficiency; ulepszenie 'Silnik' go obniza.
+  Zapas energii stacji       = 500.0  <- app/core/environment.py: energy_pool / _regenerate_chargers(cap=500)
+  Tempo ladowania            = 25.0 / krok  <- app/core/agent.py (charge_amount)
+  Rezerwa na powrot do bazy  = dist*2.5*motor_efficiency + 15.0  <- app/core/agent.py:_needs_emergency_charge
+
+  Te stale RAZEM tworza 'trudnosc energii': wieksze TERRAIN_COSTS lub mniejszy
+  energy_pool = trudniej przezyc. To one decyduja, jak szybko lazik ginie.
