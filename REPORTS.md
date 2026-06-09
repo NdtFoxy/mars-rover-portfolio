@@ -213,7 +213,11 @@ This document tracks the individual contributions of team members for the "Auton
 
 **🛠 Mykyta:** Założył strukturę repozytorium, `.gitignore`, `CONTRIBUTING.md` i workflow Git Flow (branże, conventional commits, Pull Requesty). Postawił szkielet serwera **FastAPI** oraz modele **Pydantic** (`GameState`, `Position`) jako kontrakt wymiany danych Python ↔ UE5; przygotował stuby API, by zespół frontendu mógł integrować się przed ukończeniem logiki domenowej.
 
-**🧠 Aliaksandra:** Zaimplementowała klasę `Environment` (krata 2D `width × height`) z walidacją granic (`is_within_bounds`) oraz klasę `Agent` (pozycja `x`, `y`, metoda `move` bez teleportacji, walidacja współrzędnych). Opracowała algorytm `move_randomly` (Up/Down/Left/Right) do autonomicznej nawigacji w granicach świata.
+**🧠 Aliaksandra:** Zaprojektowała i zaimplementowała **rdzeń logiki domenowej** projektu w paradygmacie obiektowym (OOP):
+- klasę `Environment` reprezentującą dyskretny świat 2D (krata `width × height`) wraz z metodą `is_within_bounds` walidującą granice planszy oraz przechowywaniem stanu siatki;
+- klasę `Agent` ze śledzeniem pozycji (`x`, `y`) i metodą `move`, która **wymusza ruch krok po kroku** (zakaz teleportacji) i sprawdza poprawność współrzędnych względem reguł środowiska;
+- algorytm autonomicznej nawigacji `move_randomly` (Up/Down/Left/Right) respektujący granice świata — pierwszy mechanizm samodzielnego poruszania się agenta, na którym później oparto BFS/A\*;
+- czytelny podział odpowiedzialności klas (agent vs środowisko), który stał się fundamentem pod wszystkie kolejne zadania (3–7). Udokumentowała własne struktury domenowe w `REPORTS.md`.
 
 **🎮 Artem:** Zbudował środowisko 3D w UE5 z dyskretną wizualizacją kraty (`BP_GridManager`), skonfigurował łazika jako Pawn (`BP_MarsRover`) z kamerą TPP. Zaimplementował asynchroniczne zapytania HTTP (VaRest), parsowanie JSON (współrzędne `x`, `y`), mapowanie indeksów kraty na World Space, płynny ruch (`MoveComponentTo`) i proceduralny spawn przeszkód.
 
@@ -221,7 +225,12 @@ This document tracks the individual contributions of team members for the "Auton
 
 **🛠 Mykyta:** Rozbudował REST API o pełny cykl symulacji (`GET /state`, `POST /step`, `POST /restart`) i globalne zarządzanie stanem między bezstanowymi żądaniami HTTP. Zaprojektował serializację JSON pakującą telemetrię agenta, stan środowiska, kratę 2D i obiekty semantyczne w jednolitą „sieć semantyczną”; skonfigurował **CORS** i dokumentację Swagger (`/docs`).
 
-**🧠 Aliaksandra:** Zbudowała hierarchię OOP obiektów semantycznych (`GameObject` → `Mineral`, `ChargingStation`) wraz z „inteligentnym” rozmieszczaniem na przejezdnym piasku. Zaimplementowała fizykę baterii zależną od terenu (piasek `−2.0`, góry `−6.0`), maszynę stanów (`IDLE/MOVING/CHARGING/DEAD`), wydobycie, dokowanie i ładowanie słoneczne (model sinusoidalny) oraz dynamiczny cykl dnia/nocy i pogodę z wagami prawdopodobieństwa.
+**🧠 Aliaksandra:** Zbudowała **całą warstwę reprezentacji wiedzy i fizyki symulacji** — najobszerniejszy moduł logiki backendu:
+- **Sieć semantyczna obiektów:** hierarchia OOP z klasą bazową `GameObject` (węzeł semantyczny) rozszerzoną do interaktywnych ram `Mineral`, `ChargingStation` i `ScienceBase`; każdy obiekt zna swój typ, pozycję i stan aktywności oraz potrafi serializować się do JSON (`to_dict`).
+- **Inteligentne rozmieszczanie:** algorytm `_get_free_sand_position`, który spawnuje obiekty **wyłącznie na przejezdnym piasku**, bez nakładania się i bez blokowania tras.
+- **Fizyka energii:** dynamiczne zużycie baterii zależne od terenu (piasek `−2.0`, góry `−6.0` → status `HEAVY_DRAIN`) oraz **pasywne ładowanie słoneczne** opisane modelem **sinusoidalnym** (sprawność = sinus pory dnia), modulowane mnożnikiem pogody.
+- **Maszyna stanów łazika:** `IDLE / MOVING / CHARGING / DEAD` (z mechaniką **permadeath** przy zerowej baterii) oraz logika interakcji: aktywne wydobycie do ekwipunku i dokowanie do stacji ze wspólną pulą energii.
+- **Dynamiczne systemy świata:** 24-godzinny cykl dnia/nocy (`time_of_day`) oraz **system pogody jako łańcuch Markowa** z wagami prawdopodobieństwa (czyste niebo, zachmurzenie, mgła, burze piaskowe), płynnie przechodzący między stanami i wpływający na sprawność paneli.
 
 **🎮 Artem:** Zaimplementował w UE5 cykl dnia/nocy reagujący na `time_of_day` z API oraz efekty pogodowe (burze, mgła). Zintegrował modele 3D obiektów semantycznych (Tytan, Lód Wodny, Hematyt, stacje ładowania) i proceduralny spawn meshy wg współrzędnych z backendu. Stworzył pierwszą wersję HUD (bateria, status, ekwipunek, pogoda, godzina).
 
@@ -229,13 +238,21 @@ This document tracks the individual contributions of team members for the "Auton
 
 **🛠 Mykyta:** Dostosował API do planowania trasy — rozszerzył modele `Pydantic` (`AgentState`) o orientację kierunkową (`N/E/S/W`) i kolejkę akcji (`current_plan`); przepisał endpoint `/step` na funkcję kognitywną `follow_plan_or_search` zamiast ruchu losowego. Równolegle przeprowadził **migrację DVC z Google Drive na Backblaze S3** i napisał skrypt onboardingowy `setup_s3.py`.
 
-**🧠 Aliaksandra:** Zaimplementowała `bfs_find_path` ściśle wg schematu przeszukiwania grafu: kolejka FIFO (lista **OPEN**) i zbiór **CLOSED** przeciw cyklom; akcje atomowe `MOVE_FORWARD`, `TURN_LEFT`, `TURN_RIGHT`. Rozbudowała „mózg” agenta o autonomiczne celowanie BFS w minerały, kolejkowy plan wykonania (`current_plan`) i fizykę kierunkową (obrót `0.5`, ruch `2.0` energii).
+**🧠 Aliaksandra:** Zaimplementowała algorytm **BFS** ściśle według „schematu procedury przeszukiwania grafu stanów”:
+- funkcja `bfs_find_path` ze stanem `(x, y, kierunek)`, **kolejką FIFO** jako listą **OPEN** (`deque`) i zbiorem **CLOSED** chroniącym przed cyklami; pierwsze osiągnięcie celu = najkrótsza (najmniej akcji) ścieżka;
+- pełny zestaw akcji atomowych jako przejść między stanami: `MOVE_FORWARD`, `TURN_LEFT`, `TURN_RIGHT`, z obsługą przeszkód (krater = ściana) i granic mapy;
+- funkcja `reconstruct_path` odtwarzająca sekwencję akcji od celu do startu;
+- rozbudowa **„mózgu” agenta**: autonomiczne wybieranie aktywnego minerału jako celu, generowanie i kolejkowe wykonywanie planu (`current_plan`) krok po kroku oraz **fizyka kierunkowa** (obrót `0.5`, ruch `2.0` energii). Dzięki temu BFS przeszedł z teorii w działający, autonomiczny ruch łazika spięty z UE5.
 
 **🎮 Artem:** Rozbudował łazika w UE5 o ruch zależny od orientacji (interpolacja obrotu przy skręcaniu), zmapował dyskretne akcje API na płynne animacje 3D (timeline) i zsynchronizował UI z bieżącym kursem oraz kolejką planu.
 
 ## Zadanie 4 — Poinformowane przeszukiwanie (A*)
 
-**🧠 Aliaksandra:** Zaimplementowała `astar_find_path` — kopiec priorytetowy, funkcja `f = g + h`, heurystyka Manhattan (dopuszczalna) oraz zróżnicowane koszty kafli (`TERRAIN_COSTS`: piasek `2.0`, skała `6.0`, obrót `0.5`).
+**🧠 Aliaksandra:** Zaimplementowała poinformowane przeszukiwanie **A\***, rozszerzając schemat z zadania 3 o koszt:
+- funkcja `astar_find_path` z **kopcem priorytetowym** (`heapq`) i funkcją priorytetu `f(n) = g(n) + h(n)`, gdzie `g` to realny dotychczasowy koszt, a `h` to **heurystyka Manhattan** (dopuszczalna → A\* pozostaje optymalny);
+- model **zróżnicowanego kosztu terenu** (`TERRAIN_COSTS`: piasek `2.0`, skała `6.0`, obrót `0.5`), dzięki któremu łazik **omija drogie skały** i planuje trasy tańsze energetycznie;
+- mechanizm pomijania „przeterminowanych” wpisów w kopcu (gdy znaleziono tańszą drogę do stanu) oraz **zliczanie rozwiniętych węzłów**, co pozwoliło ilościowo wykazać, że A\* rozwija ich mniej niż BFS;
+- integracja: ten sam moduł obsługuje trasy w zadaniach 4–7, więc A\* stał się domyślnym planerem ruchu w żywej symulacji.
 
 **🛠 Mykyta:** Zintegrował A\* z agentem (używany we wszystkich trybach poza zadaniem 3), dodał porównanie efektywności A\* vs BFS (liczba rozwiniętych węzłów, koszt energetyczny) i obsłużył wynik w API/serializacji.
 
@@ -243,7 +260,11 @@ This document tracks the individual contributions of team members for the "Auton
 
 ## Zadanie 5 — Drzewa decyzyjne (ID3)
 
-**🧠 Aliaksandra:** Zaimplementowała uczenie drzewa ID3 (`generate_dataset`, `train_tree`) na zbiorze **300 przykładów** opisanych **8 atrybutami** oraz wizualizację wyuczonego drzewa (`drzewo.png`, `reguly.txt`).
+**🧠 Aliaksandra:** Zaimplementowała pełny pipeline **uczenia drzewa decyzyjnego (ID3)**:
+- generator zbioru uczącego `generate_dataset` tworzący **300 przykładów** telemetrii (powyżej wymaganych 200), opisanych **8 atrybutami** (bateria, pora dnia, nasłonecznienie, pogoda, teren, dystans do minerału, dystans do stacji, zapełnienie plecaka) i automatycznie etykietowanych decyzją `GO_TO_CHARGE` / `CONTINUE_MINING`;
+- trening `train_tree` na `DecisionTreeClassifier(criterion="entropy")` — kryterium entropii realizuje **wybór atrybutu wg przyrostu informacji** (istota ID3), z ograniczoną głębokością przeciw przeuczeniu;
+- funkcja `predict_with_tree` zwracająca decyzję i pewności klas, używana przez agenta na żywo;
+- **wizualizacja wyuczonego drzewa** do `drzewo.png` (grafika) oraz eksport reguł IF-THEN do `reguly.txt` — czytelny dowód działania modelu na obronie.
 
 **🛠 Mykyta:** Zintegrował drzewo decyzyjne z działającym agentem jako bazowy „mózg” (decyzja `GO_TO_CHARGE` / `CONTINUE_MINING`), rozbudował telemetrię i skalibrował progi/poziomy drzewa (m.in. dostrojenie z 45% → 25%); zapewnił uczenie drzewa przy każdym starcie serwera.
 
@@ -255,13 +276,17 @@ This document tracks the individual contributions of team members for the "Auton
 
 **🛠 Mykyta:** Zaimplementował pierwszą wersję klasyfikatora neuronowego i skrypt treningowy (generacja i **balansowanie zbioru** `rover_training_data.csv`), dostroił inference serią poprawek i zoptymalizował generację map (cache). Zintegrował leniwe trenowanie sieci tylko przy aktywnym zadaniu 6.
 
-**🧠 Aliaksandra:** Dostarczyła generator map z oceną przejezdności (pathfinding), zapewniający różnorodne scenariusze wykorzystywane przy budowie zbioru uczącego.
+**🧠 Aliaksandra:** Dostarczyła **generator zróżnicowanych map** (oparty na ewolucji z oceną przejezdności przez pathfinding), który zapewnia **różnorodne scenariusze terenu** używane przy budowie i balansowaniu zbioru uczącego sieci. Dzięki temu dane treningowe pokrywają realne układy piasku/skał/kraterów (a nie jeden statyczny przypadek), co poprawia uogólnianie modelu. Jej warstwa środowiska (telemetria, pogoda, dystanse) dostarcza też 7 cech tabularnych wejścia sieci.
 
 ## Zadanie 7 — Algorytmy genetyczne (problem plecakowy)
 
 **🛠 Mykyta:** Zaprojektował i zaimplementował **`KnapsackGA`**: selekcja ruletkowa, krzyżowanie jednopunktowe, mutacja bitowa, elityzm; rozszerzył problem do **wielowymiarowego** (waga + objętość). Dodał walidację przez dokładny solver **DP** (GA = optimum, gap 0.00%), **sklep z 6 ulepszeniami (z debuffami)** i domknął pętlę ekonomiczną *wydobycie → sprzedaż → ulepszenie → większy plecak*. Przygotował `demo_genetyczny.py` (operatory krok po kroku).
 
-**🧠 Aliaksandra:** Stworzyła wcześniejszy generator map oparty na algorytmie genetycznym z ewaluacją przez pathfinding — pierwsze zastosowanie operatorów ewolucyjnych w projekcie, stanowiące bazę pod GA plecakowy.
+**🧠 Aliaksandra:** Zaimplementowała **drugie zastosowanie algorytmu genetycznego** w projekcie — **GA generujący mapę** (`genetic_map.py`), historycznie **pierwsze użycie operatorów ewolucyjnych** w całym kodzie, które utorowało drogę pod GA plecakowy:
+- osobnik = cała siatka kafli; **funkcja przystosowania** premiuje mapy przejezdne i „ciekawe” (kara za brak ścieżki start–cel liczonej pathfindingiem, kara za złe proporcje piasku/skał/kraterów, bonus za **klasteryzację skał** w pasma gór zamiast losowego szumu);
+- pełny komplet operatorów: **selekcja ruletkowa**, **krzyżowanie** (wymiana wierszy mapy), **mutacja** kafli i **elityzm**;
+- **cache** wyniku, by nie uruchamiać kosztownej ewolucji przy każdym restarcie środowiska.
+To jej moduł generuje teren, po którym faktycznie jeździ łazik we wszystkich zadaniach.
 
 **🎮 Artem:** Wyprowadził na HUD bieżący plan plecakowy (`last_knapsack`: liczba sztuk, wartość, waga) i interfejs sklepu z ulepszeniami; usunął zakleszczenie (deadlock) w logice wyznaczania trasy łazika.
 
