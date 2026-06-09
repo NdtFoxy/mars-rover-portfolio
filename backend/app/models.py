@@ -1,7 +1,11 @@
+"""Modele Pydantic = KONTRAKT DANYCH miedzy backendem (Python) a klientem UE5.
+Kazde pole jest walidowane i serializowane do JSON; UE5 czyta dokladnie te struktury.
+To tutaj definiujemy, "co widzi" frontend w odpowiedzi z /state."""
 from pydantic import BaseModel
 from typing import List, Any, Dict, Optional
 
 class AgentState(BaseModel):
+    """Pelny stan łazika wysylany na HUD (pozycja, bateria, plecak, ekonomia, decyzja AI)."""
     x: int
     y: int
     direction: str

@@ -113,9 +113,10 @@ class MapChromosome:
         return self.fitness
 
 class MapEvolution:
-    """
-    Класс управления эволюцией карт.
-    """
+    """Algorytm genetyczny GENERUJACY MAPE (drugie zastosowanie GA w projekcie, obok plecaka).
+    Osobnik = cala mapa (siatka kafli); fitness = jak 'ciekawa' i przejezdna jest mapa
+    (kara za brak sciezki, za zle proporcje piasku/skal, bonus za skupiska gor).
+    Operatory te same co w klasycznym GA: ruletka, krzyzowanie, mutacja, elityzm."""
     def __init__(self, width=20, height=15, pop_size=40, mutation_rate=0.04, generations=40):
         self.width = width
         self.height = height
@@ -160,17 +161,19 @@ class MapEvolution:
                     child.grid[y][x] = random.choices([0, 1, 2], weights=[70, 20, 10], k=1)[0]
 
     def run(self, verbose: bool = False) -> List[List[int]]:
+        """Petla ewolucji map: ocena -> sortowanie -> elityzm + ruletka/krzyzowanie/mutacja.
+        Zwraca siatke (grid) najlepszej znalezionej mapy."""
         self.init_population()
         best_overall = None
-        
+
         for gen in range(self.generations):
             for ind in self.population:
-                ind.evaluate_fitness()
-                
-            self.population.sort(key=lambda x: x.fitness, reverse=True)
-            
+                ind.evaluate_fitness()        # ocen kazda mape (przejezdnosc + proporcje + skupiska)
+
+            self.population.sort(key=lambda x: x.fitness, reverse=True)   # najlepsze na poczatek
+
             if best_overall is None or self.population[0].fitness > best_overall.fitness:
-                best_overall = copy.deepcopy(self.population[0])
+                best_overall = copy.deepcopy(self.population[0])   # zachowaj globalnie najlepsza mape
             
             if verbose and (gen % 10 == 0 or gen == self.generations - 1):
                 avg_fit = sum(ind.fitness for ind in self.population) / self.pop_size

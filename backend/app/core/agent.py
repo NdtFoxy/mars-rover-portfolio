@@ -99,21 +99,24 @@ class Agent:
         self.status = "TURNING"
 
     def move_forward(self, env: Environment):
+        # Ruch o jedno pole w aktualnym kierunku; offset zalezy od orientacji (N/E/S/W).
         offsets = {'N': (0, -1), 'E': (1, 0), 'S': (0, 1), 'W': (-1, 0)}
         dx, dy = offsets[self.direction]
         nx, ny = self.x + dx, self.y + dy
 
+        # Ruch tylko gdy pole w granicach i nie jest kraterem (typ 2 = sciana).
         if env.is_within_bounds(nx, ny) and env.get_terrain_type(nx, ny) != 2:
             terrain_type = env.get_terrain_type(nx, ny)
             self.x, self.y = nx, ny
+            # KOSZT ENERGII zalezy od terenu (piasek 2.0 / skala 6.0) i sprawnosci silnika.
             self.battery -= TERRAIN_COSTS.get(terrain_type, 1.0) * self.motor_efficiency
 
             if terrain_type == 1:
-                self.status = "HEAVY_DRAIN"
+                self.status = "HEAVY_DRAIN"   # jazda po skale = duzy pobor pradu (HUD pokazuje alarm)
             else:
                 self.status = "MOVING"
 
-        self._check_death()
+        self._check_death()   # po kazdym ruchu sprawdz, czy bateria nie spadla do 0
 
     def _get_valid_target_upgrade(self) -> Optional[str]:
         """INTELIGENTNY wybór ulepszenia oparty na analizie bieżących słabości łazika (Expert System).
@@ -198,18 +201,23 @@ class Agent:
     # ЗАДАЧA РЮКЗАКА: planowanie zestawu minerałów do zebrania (GA)
     # =================================================================
     def _plan_mining_manifest(self, env: Environment, method: str = "ga") -> None:
+        """Wybiera, KTORE mineraly oplaca sie wykopac -> rozwiazuje PROBLEM PLECAKOWY (zad. 7).
+        Domyslnie metoda 'ga' (algorytm genetyczny); 'dp' = dokladny wzorzec do porownania."""
         active = [m for m in env.objects if m.is_active and m.type in MINERAL_TYPES]
-        rem_w = self.capacity - self.current_weight()
-        rem_v = self.volume_capacity - self.current_volume()
+        rem_w = self.capacity - self.current_weight()       # ile WAGI jeszcze wejdzie
+        rem_v = self.volume_capacity - self.current_volume()  # ile OBJETOSCI jeszcze wejdzie
 
+        # Jesli nie ma minerałów albo plecak praktycznie pelny -> nic nie planujemy.
         if not active or rem_w < MIN_MINERAL_WEIGHT or rem_v < MIN_MINERAL_VOLUME * self.volume_factor:
             self.mining_manifest = []
             return
 
         items = items_from_minerals(active)
         for it in items:
-            it.volume *= self.volume_factor
+            it.volume *= self.volume_factor   # kompresor (volume_factor < 1) zmniejsza objetosc minerałów
 
+        # PREMIA: jesli zbieramy na konkretne ulepszenie, podbij wartosc potrzebnych materialow,
+        # zeby GA priorytetyzowal kopanie wlasnie ich (sprzezenie plecak <-> sklep).
         target = self._get_valid_target_upgrade()
         cost = shop.next_level_cost(target, self) if target else None
         if cost and self.money >= cost["money"]:
@@ -217,6 +225,7 @@ class Agent:
                 if it.name in cost["materials"]:
                     it.value += 120.0
 
+        # Rozwiaz plecak: GA (gra) albo DP (dokladne optimum -- do walidacji).
         if method == "dp":
             chosen, total_value, total_weight, total_volume = solve_knapsack_dp(items, rem_w, rem_v)
         else:
@@ -389,24 +398,27 @@ class Agent:
     # ЭКОНОМИКА В БАЗЕ: sprzedaż nadwyżek + zakup ulepszeń (pieniądze+materiały)
     # =================================================================
     def _do_base_economy(self) -> None:
+        # 1) Ustal nastepny cel ulepszenia i ile materialow trzeba na niego ZAREZERWOWAC.
         target = self._get_valid_target_upgrade()
         cost = shop.next_level_cost(target, self) if target else None
 
-        reserve = bool(target and cost and self.money >= cost["money"])
+        reserve = bool(target and cost and self.money >= cost["money"])   # rezerwujemy tylko gdy stac nas na $
         needed = dict(cost["materials"]) if reserve else {}
 
+        # 2) SPRZEDAZ: zatrzymaj mineraly potrzebne na ulepszenie, reszte sprzedaj za $.
         kept_counts: Dict[str, int] = {}
         new_inventory: List[str] = []
         for mat in self.inventory:
             if kept_counts.get(mat, 0) < needed.get(mat, 0):
                 kept_counts[mat] = kept_counts.get(mat, 0) + 1
-                new_inventory.append(mat)
+                new_inventory.append(mat)                  # zatrzymaj (zarezerwowane na ulepszenie)
             else:
                 base_val = MATERIAL_SPECS.get(mat, {"value": 10.0})["value"]
-                self.money += base_val * (1.0 + self.sell_bonus)
+                self.money += base_val * (1.0 + self.sell_bonus)   # sprzedaj (+premia z wiertla)
         self.inventory = new_inventory
         self.status = "UNLOADING"
 
+        # 3) ZAKUPY: kupuj ulepszenia dopoki stac (max 10/turę). Petla dziala tylko gdy sklep wlaczony.
         for _ in range(10 if shop.SHOP_ENABLED else 0):
             tid = self._get_valid_target_upgrade()
             if tid and shop.can_afford(self, tid):
@@ -426,34 +438,39 @@ class Agent:
 
         is_charging_at_station = False
 
+        # Sprawdz obiekt na polu, na ktorym stoi lazik, i wykonaj odpowiednia interakcje.
         for obj in env.objects:
             if obj.is_active and obj.x == self.x and obj.y == self.y:
                 if obj.type == "ScienceBase":
+                    # BAZA: sprzedaj mineraly i (opcjonalnie) kup ulepszenia.
                     if self.inventory or self._get_valid_target_upgrade():
                         self._do_base_economy()
 
                 elif obj.type == "ChargingStation":
+                    # STACJA: ladowanie ze WSPOLNEGO zapasu energii stacji (energy_pool, max 500).
                     charge_needed = self.max_battery - self.battery
                     if charge_needed > 0 and obj.energy_pool > 0:
-                        charge_amount = min(25.0, obj.energy_pool, charge_needed)
+                        charge_amount = min(25.0, obj.energy_pool, charge_needed)  # max 25/krok
                         self.battery += charge_amount
-                        obj.energy_pool -= charge_amount
+                        obj.energy_pool -= charge_amount        # stacja sie wyczerpuje
                         self.status = "CHARGING"
                         is_charging_at_station = True
                         if obj.energy_pool <= 0:
-                            obj.is_active = False
+                            obj.is_active = False                # pusta stacja znika
 
                 elif obj.type in MINERAL_TYPES:
+                    # MINERAL: zbieramy do plecaka tylko jesli zmiesci sie waga ORAZ objetosc.
                     w = getattr(obj, "weight", 1.0)
                     v = getattr(obj, "volume", 1.0) * self.volume_factor
                     if (self.current_weight() + w <= self.capacity
                             and self.current_volume() + v <= self.volume_capacity):
                         self.inventory.append(obj.type)
-                        obj.is_active = False
+                        obj.is_active = False                    # wykopany minerał znika z mapy
 
-        solar_efficiency = self._calculate_solar_efficiency(env.time_of_day)
-        weather_multiplier = self.WEATHER_MULTIPLIERS.get(env.weather, 1.0)
-        solar_charge = 1.0 * solar_efficiency * weather_multiplier * self.solar_bonus
+        # LADOWANIE SLONECZNE (pasywne, kazda tura): zalezy od pory dnia, pogody i paneli.
+        solar_efficiency = self._calculate_solar_efficiency(env.time_of_day)   # 0 w nocy, max w poludnie
+        weather_multiplier = self.WEATHER_MULTIPLIERS.get(env.weather, 1.0)     # burza/mgla obniza
+        solar_charge = 1.0 * solar_efficiency * weather_multiplier * self.solar_bonus  # solar_bonus z paneli
         self.battery = min(self.max_battery, self.battery + solar_charge)
 
         if not is_charging_at_station and self.status not in ["MOVING", "HEAVY_DRAIN", "TURNING", "UNLOADING"]:
@@ -534,49 +551,55 @@ class Agent:
             return fallback
 
     def decide_next_macro_action(self, env: Environment, trained_nn, scaler, reverse_mapping: dict) -> str:
+        """MOZG ZADANIA 6: decyzja GO_TO_CHARGE / CONTINUE_MINING przez siec CNN+MLP."""
         self.decision_system = "CNN + MLP"
-        img_tensor = self.get_camera_image_from_ue5(env)
+        img_tensor = self.get_camera_image_from_ue5(env)   # WEJSCIE 1: obraz terenu pod lazikiem
 
+        # WEJSCIE 2: 7 cech telemetrii (te same, na ktorych uczono siec i drzewo).
         battery_pct = (self.battery / self.max_battery * 100.0) if self.max_battery > 0 else 0.0
         w_fill = (self.current_weight() / self.capacity) if self.capacity > 0 else 1.0
         v_fill = (self.current_volume() / self.volume_capacity) if self.volume_capacity > 0 else 1.0
-        fill_ratio = max(w_fill, v_fill)
-        
+        fill_ratio = max(w_fill, v_fill)   # zapelnienie plecaka = max(waga, objetosc)
+
         raw_features = np.array([[
-            battery_pct,
-            env.time_of_day,
-            self._calculate_solar_efficiency(env.time_of_day),
-            self.WEATHER_MULTIPLIERS.get(env.weather, 1.0),
-            self._get_dist_to_mineral(env),
-            self._get_dist_to_station(env),
-            fill_ratio
+            battery_pct,                                          # 1. poziom baterii [%]
+            env.time_of_day,                                     # 2. pora dnia
+            self._calculate_solar_efficiency(env.time_of_day),   # 3. sprawnosc paneli (dzien/noc)
+            self.WEATHER_MULTIPLIERS.get(env.weather, 1.0),      # 4. mnoznik pogody
+            self._get_dist_to_mineral(env),                      # 5. dystans do minerału
+            self._get_dist_to_station(env),                      # 6. dystans do stacji
+            fill_ratio                                           # 7. zapelnienie plecaka
         ]])
 
+        # Skalowanie cech tym samym scalerem co przy uczeniu (wazne dla sieci!).
         scaled_features = scaler.transform(raw_features)
         tab_tensor = torch.tensor(scaled_features, dtype=torch.float32)
 
-        with torch.no_grad():
-            outputs = trained_nn(img_tensor, tab_tensor)
-            probabilities = torch.nn.functional.softmax(outputs, dim=1).numpy()[0]
-            self.nn_confidence["CHARGE"] = float(probabilities[0] * 100)
+        with torch.no_grad():   # inference -> bez liczenia gradientow (szybciej)
+            outputs = trained_nn(img_tensor, tab_tensor)   # przepuszczamy obraz + telemetrie
+            probabilities = torch.nn.functional.softmax(outputs, dim=1).numpy()[0]  # logity -> prawdopodobienstwa
+            self.nn_confidence["CHARGE"] = float(probabilities[0] * 100)   # % pewnosci -> HUD
             self.nn_confidence["MINING"] = float(probabilities[1] * 100)
-            class_idx = torch.argmax(outputs, dim=1).item()
+            class_idx = torch.argmax(outputs, dim=1).item()   # wybierz klase o wyzszym wyniku
 
-        decision = reverse_mapping.get(class_idx, "CONTINUE_MINING")
+        decision = reverse_mapping.get(class_idx, "CONTINUE_MINING")   # indeks -> nazwa decyzji
         return decision
 
     def decide_with_tree(self, env: Environment, tree_clf) -> str:
+        """MOZG POZOSTALYCH ZADAN (3/4/5/7): decyzja przez drzewo decyzyjne ID3."""
         self.decision_system = "DECISION TREE"
-        decision, confidence = predict_with_tree(tree_clf, self, env)
+        decision, confidence = predict_with_tree(tree_clf, self, env)   # te same 8 cech co w zad.5
         self.nn_confidence = confidence
         return decision
 
     def _calculate_solar_efficiency(self, time_of_day: int) -> float:
-        if 6 <= time_of_day <= 20:
-            return math.sin((time_of_day - 6) / 14.0 * math.pi)
-        return 0.0
+        """Sprawnosc paneli slonecznych jako sinus: 0 o switu/zmierzchu, max w poludnie, 0 w nocy."""
+        if 6 <= time_of_day <= 20:                              # dzien: 6:00-20:00
+            return math.sin((time_of_day - 6) / 14.0 * math.pi)  # luk sinusa od 0 do 1 i z powrotem
+        return 0.0                                             # noc -> brak ladowania slonecznego
 
     def _check_death(self) -> None:
+        """Permadeath: gdy bateria spadnie do 0, lazik ginie (status DEAD, koniec misji)."""
         if self.battery <= 0:
             self.battery = 0.0
             self.status = "DEAD"

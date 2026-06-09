@@ -255,6 +255,8 @@ def print_pretty_console(environment: Environment, current_agent: Agent):
 
 @router.get("/state", response_model=GameState)
 async def get_current_state():
+    # Pakuje CALY stan symulacji w jeden JSON dla UE5: agent, srodowisko, krata,
+    # obiekty (mineraly/stacje), sklep i aktywne zadanie. To "zdjecie" swiata.
     env_dict = env.to_dict()
     return GameState(
         agent=agent.to_dict(env),
@@ -271,18 +273,19 @@ async def get_current_state():
 
 @router.post("/step", response_model=GameState)
 async def make_next_step():
-    active_nn, active_scaler, active_mapping = active_decision_models()
-    agent.follow_plan_or_search(
+    # JEDEN KROK SYMULACJI (UE5 wola to w petli co 1-2 s):
+    active_nn, active_scaler, active_mapping = active_decision_models()  # CNN tylko w zad.6, inaczej None
+    agent.follow_plan_or_search(                # 1) mysl: znajdz/wykonaj plan (BFS/A* + decyzja)
         env,
         trained_nn=active_nn,
         scaler=active_scaler,
         reverse_mapping=active_mapping,
-        tree_clf=tree_clf,
+        tree_clf=tree_clf,                     #    drzewo zawsze dostepne jako bazowy mozg
     )
-    agent.interact_and_recharge(env)
-    env.update_time_and_weather()
-    print_pretty_console(env, agent)
-    return await get_current_state()
+    agent.interact_and_recharge(env)           # 2) interakcja: kopanie / ladowanie / baza
+    env.update_time_and_weather()              # 3) swiat: czas, pogoda, regeneracja
+    print_pretty_console(env, agent)           # 4) podglad w terminalu serwera
+    return await get_current_state()           # 5) odeslij nowy stan do UE5
 
 @router.post("/step_multiple/{count}", response_model=GameState)
 async def make_multiple_steps(count: int):

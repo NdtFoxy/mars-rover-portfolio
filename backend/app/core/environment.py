@@ -108,14 +108,16 @@ class Environment:
         return 0 <= x < self.width and 0 <= y < self.height
 
     def update_time_and_weather(self) -> None:
+        """Jeden 'tik' swiata: postep czasu, pogoda, regeneracja stacji i minerałów.
+        To stad bierze sie 'trudnosc zalezna od krokow' (dzien/noc + pogoda)."""
         self.step_counter += 1
-        self.time_of_day = (self.step_counter * 0.25) % 24
-        
-        if self.step_counter % 8 == 0:
+        self.time_of_day = (self.step_counter * 0.25) % 24   # 1 krok = 0.25h -> pelna doba co 96 krokow
+
+        if self.step_counter % 8 == 0:                       # co 8 krokow losujemy nowa pogode
             self.weather = self._get_smooth_weather_transition(self.weather)
 
-        self._regenerate_chargers()
-        self._respawn_minerals_if_needed()
+        self._regenerate_chargers()          # stacje powoli odnawiaja energie
+        self._respawn_minerals_if_needed()   # dosypujemy mineraly, gdy jest ich za malo
 
     def _regenerate_chargers(self, cap: float = 500.0) -> None:
         # Stacje ładujące powoli odnawiają energię (regulowane przez CHARGER_REGEN).
@@ -143,6 +145,9 @@ class Environment:
                 self.objects.append(Mineral(mineral_name, x, y))
 
     def _get_smooth_weather_transition(self, current_weather: str) -> str:
+        """Pogoda jako lancuch Markowa: z biezacego stanu losujemy nastepny wg wag
+        (np. z 'Clear_Skies' najczesciej zostajemy przy czystym niebie). Dzieki temu
+        pogoda zmienia sie PLYNNIE, a nie skacze losowo (np. slonce -> burza -> slonce)."""
         transitions = {
             "Clear_Skies": ["Clear_Skies", "Partly_Cloudy", "Sand_Dust_Calm"],
             "Partly_Cloudy": ["Clear_Skies", "Partly_Cloudy", "Cloudy"],
@@ -170,13 +175,15 @@ class Environment:
         return self.grid[y][x]
 
     def _generate_terrain(self, force_new: bool = False) -> None:
+        """Teren mapy generowany ALGORYTMEM GENETYCZNYM (zad. 7 -> genetic_map.py).
+        Wynik jest CACHE'OWANY, by nie uruchamiac GA przy kazdym restarcie (kosztowne)."""
         key = (self.width, self.height)
-        
-        # Если принудительно запрошена новая карта или в кэше пусто — запускаем GA
+
+        # Nowa mapa tylko gdy wymuszono LUB nie ma jej jeszcze w cache -> wtedy odpalamy GA.
         if force_new or key not in Environment._cached_grids:
             Environment._cached_grids[key] = generate_optimal_map(self.width, self.height)
-            
-        # Копируем карту из кэша, чтобы избежать побочных эффектов перезаписи памяти
+
+        # Kopiujemy mape z cache (lista list), by przypadkiem nie nadpisac wspolnej pamieci.
         self.grid = [list(row) for row in Environment._cached_grids[key]]
 
     def _get_free_sand_position(self, occupied: Set[Tuple[int, int]] = None) -> Tuple[int, int]:
