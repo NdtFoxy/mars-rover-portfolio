@@ -1,49 +1,65 @@
 ====================================================================================
  POROWNANIE PRZEZYWALNOSCI LAZIKA W ZADANIACH 3-7
- (10 losowych map, seed 1-10, limit 2000 krokow; ulepzenia ZAWSZE wlaczone w grze)
+ (10 losowych map, seed 1-10, limit 2000 krokow)
 ====================================================================================
 
-Zadanie / algorytm                sr.krok   min    max  przezyl       $   upg
+LEGENDA KOLUMN:
+  sr.krok = sredni krok, na ktorym lazik zginal  (2000 = przezyl caly limit, nie zginal)
+  min/max = najgorszy / najlepszy z 10 przebiegow (seed 1-10)
+  przezyl = ile z 10 przebiegow dotrwalo do 2000 krokow bez statusu DEAD  (np. 3/10)
+  $       = sredni budzet ($) na koniec misji (zarobek ze sprzedazy mineralow w bazie)
+  upg     = srednia liczba kupionych ulepszen ze sklepu (0 gdy sklep wylaczony)
+
 ------------------------------------------------------------------------------------
+>>> SKLEP WLACZONY  (shop.SHOP_ENABLED = True)  -- normalny tryb gry
+------------------------------------------------------------------------------------
+Zadanie / algorytm                sr.krok   min    max  przezyl       $   upg
 3 BFS  (Breadth-First Search)         498    30   2000     1/10     440   1.7
-4 A*   (A-star, koszt+heur.)          868    57   2000     3/10     591   3.1
+4 A*   (A-star, koszt+heurystyka)     868    57   2000     3/10     591   3.1
 5 ID3  (drzewo decyzyjne)             868    57   2000     3/10     591   3.1
 6 CNN  (siec neuronowa)               868    57   2000     3/10     591   3.1
 7 GA   (algorytm genetyczny)          868    57   2000     3/10     591   3.1
-------------------------------------------------------------------------------------
 
-Ten sam test BEZ ulepszen (benchmark teoretyczny -- patrz uwaga nizej):
 ------------------------------------------------------------------------------------
+>>> SKLEP WYLACZONY  (shop.SHOP_ENABLED = False)  -- realna flaga w kodzie
+------------------------------------------------------------------------------------
+Zadanie / algorytm                sr.krok   min    max  przezyl       $   upg
 3 BFS  (Breadth-First Search)         137    30    355     0/10     262   0.0
-4 A*   (A-star, koszt+heur.)          416    57   1151     0/10     645   0.0
+4 A*   (A-star, koszt+heurystyka)     416    57   1151     0/10     645   0.0
 5 ID3  (drzewo decyzyjne)             416    57   1151     0/10     645   0.0
 6 CNN  (siec neuronowa)               416    57   1151     0/10     645   0.0
 7 GA   (algorytm genetyczny)          416    57   1151     0/10     645   0.0
+
 ------------------------------------------------------------------------------------
+FLAGA SKLEPU (prawdziwa, nie obejscie):
+  app/core/shop.py    ->  SHOP_ENABLED = True / False
+  app/core/agent.py   ->  petla zakupow dziala tylko gdy shop.SHOP_ENABLED
+  Wniosek: z ulepszeniami lazik zyje ~2x dluzej (498->bardziej i 416->868),
+  bo kupuje baterie/panele/silnik. Bez sklepu zaden przebieg nie dotrwal do konca.
 
-UWAGA -- 'z ulepszeniami' vs 'bez ulepszen':
-  W kodzie NIE MA flagi wlacz/wylacz sklep. Lazik ZAWSZE sam kupuje ulepszenia
-  na bazie (agent.py: petla shop.purchase_upgrade). Wariant 'BEZ ulepszen' to
-  tylko pomiar testowy: w benchmarku zablokowano wybor celu ulepszenia
-  (_get_valid_target_upgrade -> None), zeby pokazac SAM wplyw sklepu na misje.
-
-Dlaczego 4,5,6,7 maja podobne wyniki:
-  Wybor zadania zmienia tylko: (a) algorytm trasy -- BFS w zad.3, A* w zad.4-7;
-  (b) 'mozg' decyzji ladowac/kopac -- CNN w zad.6, drzewo ID3 w pozostalych.
-  Silnik energii/ekonomii jest wspolny, dlatego zad.4/5/7 daja te same liczby,
-  a zad.6 na zywo (CNN) decyduje prawie identycznie jak drzewo.
+Dlaczego zadania 4,5,6,7 daja te same liczby:
+  Wybor zadania zmienia tylko (a) algorytm trasy: BFS w zad.3, A* w zad.4-7;
+  (b) "mozg" decyzji ladowac/kopac: CNN w zad.6, drzewo ID3 w pozostalych.
+  Silnik energii i ekonomii jest wspolny, wiec zad.4/5/7 sa identyczne liczbowo,
+  a zad.6 na zywo (CNN) decyduje prawie tak samo jak drzewo.
 
 ====================================================================================
  WSPOLCZYNNIKI TRUDNOSCI ENERGETYCZNEJ (skad pochodza)
 ====================================================================================
-  Koszt ruchu po PIASKU      = 2.0   <- zadania/zadanie_4_Astar/astar.py: TERRAIN_COSTS[0]
-  Koszt ruchu po SKALE       = 6.0   <- zadania/zadanie_4_Astar/astar.py: TERRAIN_COSTS[1]
-  Koszt OBROTU               = 0.5   <- zadania/zadanie_4_Astar/astar.py: TURN_COST
-  Mnoznik silnika            = motor_efficiency (bazowo 1.0)  <- app/core/agent.py
-       kazdy koszt energii * motor_efficiency; ulepszenie 'Silnik' go obniza.
-  Zapas energii stacji       = 500.0  <- app/core/environment.py: energy_pool / _regenerate_chargers(cap=500)
-  Tempo ladowania            = 25.0 / krok  <- app/core/agent.py (charge_amount)
-  Rezerwa na powrot do bazy  = dist*2.5*motor_efficiency + 15.0  <- app/core/agent.py:_needs_emergency_charge
+  Koszt ruchu po PIASKU  = 2.0    <- zadania/zadanie_4_Astar/astar.py : TERRAIN_COSTS[0]
+  Koszt ruchu po SKALE   = 6.0    <- zadania/zadanie_4_Astar/astar.py : TERRAIN_COSTS[1]
+  Koszt OBROTU           = 0.5    <- zadania/zadanie_4_Astar/astar.py : TURN_COST
+  motor_efficiency       = 1.0    <- app/core/agent.py  (mnoznik kazdego kosztu;
+                                     ulepszenie "Silnik napedowy" go obniza)
+  energy_pool stacji     = 500.0  <- app/core/environment.py : _regenerate_chargers(cap=500)
+  tempo ladowania        = 25.0/krok  <- app/core/agent.py (charge_amount)
+  rezerwa na powrot      = dist*2.5*motor_efficiency + 15.0
+                                  <- app/core/agent.py : _needs_emergency_charge
 
-  Te stale RAZEM tworza 'trudnosc energii': wieksze TERRAIN_COSTS lub mniejszy
-  energy_pool = trudniej przezyc. To one decyduja, jak szybko lazik ginie.
+TRUDNOSC ZALEZNA OD LICZBY KROKOW (step_counter)  <- app/core/environment.py:
+  time_of_day = step_counter * 0.25 % 24   -> cykl dzien/noc (w nocy brak ladowania slonecznego)
+  co 8 krokow zmiana pogody (step_counter % 8) -> burze piaskowe / mgla obnizaja panele
+  Im dluzej trwa misja, tym czesciej trafiaja sie noce i zla pogoda = trudniej przezyc.
+
+  Te stale RAZEM tworza "trudnosc energii": wieksze TERRAIN_COSTS lub mniejszy
+  energy_pool = trudniej przezyc; to one decyduja, jak szybko lazik ginie.

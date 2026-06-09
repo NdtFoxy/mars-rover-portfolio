@@ -407,7 +407,7 @@ class Agent:
         self.inventory = new_inventory
         self.status = "UNLOADING"
 
-        for _ in range(10):
+        for _ in range(10 if shop.SHOP_ENABLED else 0):
             tid = self._get_valid_target_upgrade()
             if tid and shop.can_afford(self, tid):
                 result = shop.purchase_upgrade(self, tid)

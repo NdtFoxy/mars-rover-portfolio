@@ -17,6 +17,10 @@ Atrybuty agenta modyfikowane przez sklep:
 
 from typing import Dict, List, Any, Optional
 
+# Globalny przełącznik sklepu. False -> łazik NIE kupuje ulepszeń
+# (np. do porównania misji z/bez sklepu). Domyślnie sklep aktywny.
+SHOP_ENABLED: bool = True
+
 # =====================================================================
 # KATALOG ULEPSZEŃ. Koszt poziomu = pieniądze ($) + materiały.
 # "(−)" w opisie oznacza DEBUFF (kompromis).
