@@ -61,6 +61,7 @@ class Agent:
         self.last_knapsack: Optional[Dict[str, Any]] = None
         self.last_purchase: str = ""
         self.charging_mode: bool = False            # histereza ładowania (ładuj do pełna)
+        self.current_upgrade_target: Optional[str] = None  # aktualny INTELIGENTNY cel zakupów
 
     # ---- Aktualna waga / objętość ładunku w plecaku ----
     def current_weight(self) -> float:
@@ -99,15 +100,65 @@ class Agent:
 
         self._check_death()
 
+    def _get_valid_target_upgrade(self) -> Optional[str]:
+        """INTELIGENTNY wybór ulepszenia oparty na analizie bieżących słabości łazika (Expert System)."""
+        # 1. Jeśli mamy już cel, sprawdzamy czy nadal fizycznie mieści się w plecaku
+        if self.current_upgrade_target:
+            cost = shop.next_level_cost(self.current_upgrade_target, self)
+            if cost is not None:
+                req_w = sum(MATERIAL_SPECS.get(m, {"weight": 1.0})["weight"] * q for m, q in cost["materials"].items())
+                req_v = sum(MATERIAL_SPECS.get(m, {"volume": 1.0})["volume"] * q * self.volume_factor for m, q in cost["materials"].items())
+                if req_w <= self.capacity and req_v <= self.volume_capacity:
+                    return self.current_upgrade_target
+
+        # 2. Jeśli nie mamy celu, sprawdzamy na co możemy w ogóle zbierać (co zmieści się fizycznie w plecaku)
+        valid_targets = []
+        for upgrade_id in shop.UPGRADE_ORDER:
+            cost = shop.next_level_cost(upgrade_id, self)
+            if cost is not None:
+                req_w = sum(MATERIAL_SPECS.get(m, {"weight": 1.0})["weight"] * q for m, q in cost["materials"].items())
+                req_v = sum(MATERIAL_SPECS.get(m, {"volume": 1.0})["volume"] * q * self.volume_factor for m, q in cost["materials"].items())
+                if req_w <= self.capacity and req_v <= self.volume_capacity:
+                    valid_targets.append(upgrade_id)
+        
+        # 3. Zastosowanie analizy heurystycznej (AI Scoring) do wyboru najlepszego ulepszenia
+        if valid_targets:
+            scores = {}
+            for uid in valid_targets:
+                score = 0.0
+                if uid == "battery":
+                    # Im mniejsza bateria, tym bardziej jej potrzebuje (Priorytet najwyższy)
+                    score = (100.0 / self.max_battery) * 100.0
+                elif uid == "motor":
+                    # Im gorsza wydajność silnika, tym wyższy priorytet
+                    score = self.motor_efficiency * 90.0
+                elif uid == "cargo":
+                    # Im mniejszy plecak w stosunku do bazy, tym większa potrzeba
+                    score = (20.0 / self.capacity) * 85.0
+                elif uid == "compressor":
+                    # Objętość: kompresor ma wysoki wynik, dopóki factor jest wysoki (1.0)
+                    score = self.volume_factor * 80.0
+                elif uid == "solar":
+                    # Panele słoneczne stają się mniej ważne po pierwszym ulepszeniu
+                    score = (1.0 / self.solar_bonus) * 75.0
+                elif uid == "drill":
+                    # Wiertło przydaje się później, żeby szybciej zarabiać
+                    score = 40.0 + (self.sell_bonus * 20.0)
+                
+                scores[uid] = score
+                
+            # Łazik samodzielnie decyduje się na cel z najwyższym wynikiem (najbardziej potrzebny)
+            best_upgrade = max(scores, key=scores.get)
+            self.current_upgrade_target = best_upgrade
+            return self.current_upgrade_target
+            
+        self.current_upgrade_target = None
+        return None
+
     # =================================================================
     # PROBLEM PLECAKOWY: planowanie zestawu minerałów do zebrania (GA)
     # =================================================================
     def _plan_mining_manifest(self, env: Environment, method: str = "ga") -> None:
-        """
-        Rozwiązuje problem plecakowy: spośród wszystkich aktywnych minerałów
-        wybiera podzbiór maksymalizujący wartość, mieszczący się w wolnej
-        przestrzeni plecaka. Domyślnie algorytm genetyczny (GA).
-        """
         active = [m for m in env.objects if m.is_active and m.type in MINERAL_TYPES]
         rem_w = self.capacity - self.current_weight()
         rem_v = self.volume_capacity - self.current_volume()
@@ -117,14 +168,10 @@ class Agent:
             return
 
         items = items_from_minerals(active)
-        # Kompresor zmniejsza efektywną objętość przenoszonych minerałów
         for it in items:
             it.volume *= self.volume_factor
 
-        # POŁĄCZENIE PLECAKA ZE SKLEPEM: jeśli zbieramy na konkretne ulepszenie i
-        # stać nas już na jego koszt pieniężny, podbijamy wartość potrzebnych
-        # surowców w funkcji celu, aby algorytm genetyczny włożył je do plecaka.
-        target = shop.next_target_upgrade(self)
+        target = self._get_valid_target_upgrade()
         cost = shop.next_level_cost(target, self) if target else None
         if cost and self.money >= cost["money"]:
             for it in items:
@@ -146,14 +193,6 @@ class Agent:
         }
 
     def _plan_to_manifest(self, env: Environment) -> Optional[List[str]]:
-        """
-        Wyznacza trasę (A*) do najbliższego OSIĄGALNEGO minerału z manifestu,
-        który WCIĄŻ MIEŚCI SIĘ w plecaku (waga). Z manifestu usuwane są minerały
-        nieaktywne, za ciężkie (po zebraniu innych) oraz nieosiągalne (za
-        kraterami) -- dzięki temu łazik nigdy nie blokuje się na celu, którego
-        nie da się ani osiągnąć, ani podnieść.
-        Zwraca plan ruchów ([] = już na miejscu) lub None, gdy nic nie zostało.
-        """
         rem_w = self.capacity - self.current_weight()
         rem_v = self.volume_capacity - self.current_volume()
         self.mining_manifest = [
@@ -167,25 +206,38 @@ class Agent:
             path = astar_find_path(self.x, self.y, self.direction, m.x, m.y, env)
             if path is not None:
                 return path
-            self.mining_manifest.remove(m)  # nieosiągalny -> wyrzuć z planu
+            
+            m.is_active = False
+            self.mining_manifest.remove(m)
+            
         return None
 
     def _plan_to_charge_or_base(self, env: Environment) -> Optional[List[str]]:
-        """Trasa do stacji ładującej (słaba bateria) lub do bazy (sprzedaż)."""
-        if self.battery < 45.0:
-            candidates = [s for s in env.objects if s.is_active and s.type == "ChargingStation"]
+        chargers = [s for s in env.objects if s.is_active and s.type == "ChargingStation"]
+        bases = [b for b in env.objects if b.is_active and b.type == "ScienceBase"]
+        
+        chargers.sort(key=lambda o: abs(self.x - o.x) + abs(self.y - o.y))
+        bases.sort(key=lambda o: abs(self.x - o.x) + abs(self.y - o.y))
+
+        rem_w = self.capacity - self.current_weight()
+        rem_v = self.volume_capacity - self.current_volume()
+        is_full = (rem_w < MIN_MINERAL_WEIGHT) or (rem_v < MIN_MINERAL_VOLUME * self.volume_factor)
+
+        candidates = []
+        if self.battery < 40.0 and not is_full:
+            candidates = chargers + bases
         else:
-            candidates = [b for b in env.objects if b.is_active and b.type == "ScienceBase"]
-        candidates.sort(key=lambda o: abs(self.x - o.x) + abs(self.y - o.y))
+            candidates = bases + chargers
+
         for o in candidates:
             path = astar_find_path(self.x, self.y, self.direction, o.x, o.y, env)
             if path is not None:
                 return path
+                
         return None
 
     def _plan_to_station(self, env: Environment) -> Optional[List[str]]:
-        """Trasa do najbliższej osiągalnej stacji ładującej."""
-        stations = [s for s in env.objects if s.is_active and s.type == "ChargingStation"]
+        stations = [s for s in env.objects if s.is_active and s.type in ["ChargingStation", "ScienceBase"]]
         stations.sort(key=lambda s: abs(self.x - s.x) + abs(self.y - s.y))
         for s in stations:
             path = astar_find_path(self.x, self.y, self.direction, s.x, s.y, env)
@@ -194,12 +246,6 @@ class Agent:
         return None
 
     def _needs_emergency_charge(self, env: Environment) -> bool:
-        """
-        Twardy limit bezpieczeństwa (niezależny od sieci neuronowej): czy baterii
-        wystarczy jeszcze na dojazd do najbliższej stacji? Szacujemy koszt powrotu
-        jako ~2.5 energii na pole (skały + obroty) z rezerwą, aby łazik nie padł
-        w trasie między minerałami.
-        """
         stations = [s for s in env.objects if s.is_active and s.type == "ChargingStation"]
         if not stations:
             return False
@@ -211,15 +257,12 @@ class Agent:
         if self.status == "DEAD":
             return
 
-        # Tryb ładowania z histerezą: po wejściu ładujemy aż do ~90% pojemności,
-        # aby wyruszać z pełnym bakiem (inaczej łazik kręci się przy stacji).
         if self.charging_mode and self.battery >= 0.9 * self.max_battery:
             self.charging_mode = False
         if self._needs_emergency_charge(env):
             self.charging_mode = True
 
         if self.charging_mode:
-            # PRIORYTET BEZPIECZEŃSTWA: jedź do stacji i ładuj do pełna
             self.mining_manifest = []
             self.current_plan = self._plan_to_station(env) or []
         elif not self.current_plan:
@@ -228,7 +271,6 @@ class Agent:
             else:
                 decision = "CONTINUE_MINING"
 
-            # Plecak praktycznie pełny (waga LUB objętość) -> wracamy rozładować/sprzedać
             rem_w = self.capacity - self.current_weight()
             rem_v = self.volume_capacity - self.current_volume()
             if rem_w < MIN_MINERAL_WEIGHT or rem_v < MIN_MINERAL_VOLUME * self.volume_factor:
@@ -237,16 +279,20 @@ class Agent:
 
             plan = None
             if decision == "CONTINUE_MINING":
-                # Problem plecakowy: zaplanuj optymalny zestaw, potem zbieraj po kolei
                 if not self.mining_manifest:
                     self._plan_mining_manifest(env)
                 plan = self._plan_to_manifest(env)
-                # Nic osiągalnego się już nie mieści, a mamy ładunek -> jedź sprzedać
                 if plan is None and self.inventory:
                     decision = "GO_TO_CHARGE"
 
             if decision == "GO_TO_CHARGE":
                 plan = self._plan_to_charge_or_base(env)
+
+                rem_w = self.capacity - self.current_weight()
+                rem_v = self.volume_capacity - self.current_volume()
+                if not plan and self.battery > 50.0 and rem_w >= MIN_MINERAL_WEIGHT and rem_v >= (MIN_MINERAL_VOLUME * self.volume_factor):
+                    self._plan_mining_manifest(env)
+                    plan = self._plan_to_manifest(env)
 
             if plan:
                 self.current_plan = plan
@@ -267,11 +313,9 @@ class Agent:
     # EKONOMIA W BAZIE: sprzedaż nadwyżek + zakup ulepszeń (pieniądze+materiały)
     # =================================================================
     def _do_base_economy(self) -> None:
-        target = shop.next_target_upgrade(self)
+        target = self._get_valid_target_upgrade()
         cost = shop.next_level_cost(target, self) if target else None
 
-        # Materiały rezerwujemy dopiero gdy stać nas już na koszt pieniężny celu
-        # (inaczej najpierw uzbierajmy pieniądze, sprzedając wszystko).
         reserve = bool(target and cost and self.money >= cost["money"])
         needed = dict(cost["materials"]) if reserve else {}
 
@@ -283,18 +327,18 @@ class Agent:
                 new_inventory.append(mat)
             else:
                 base_val = MATERIAL_SPECS.get(mat, {"value": 10.0})["value"]
-                self.money += base_val * (1.0 + self.sell_bonus)   # premia wiertła
+                self.money += base_val * (1.0 + self.sell_bonus)
         self.inventory = new_inventory
         self.status = "UNLOADING"
 
-        # Auto-zakup wszystkich ulepszeń, na które agenta teraz stać
         for _ in range(10):
-            tid = shop.next_target_upgrade(self)
+            tid = self._get_valid_target_upgrade()
             if tid and shop.can_afford(self, tid):
                 result = shop.purchase_upgrade(self, tid)
                 if not result.get("success"):
                     break
                 self.last_purchase = result["message"]
+                self.current_upgrade_target = None  # <--- Po zakupie resetujemy cel, łazik znowu przeanalizuje czego mu brakuje
             else:
                 break
 
@@ -307,7 +351,7 @@ class Agent:
         for obj in env.objects:
             if obj.is_active and obj.x == self.x and obj.y == self.y:
                 if obj.type == "ScienceBase":
-                    if self.inventory or shop.next_target_upgrade(self):
+                    if self.inventory or self._get_valid_target_upgrade():
                         self._do_base_economy()
 
                 elif obj.type == "ChargingStation":
@@ -357,18 +401,12 @@ class Agent:
             return 100.0
         return min(abs(self.x - s.x) + abs(self.y - s.y) for s in active_stations)
 
-    # ---- MAPOWANIE TERENU NA MATRYCĘ 3x3 (tylko do podglądu JSON / UE5) ----
     def terrain_to_pixels(self, terrain_type: int) -> list:
-        """
-        Konwertuje kod terenu na płaską macierz pikseli 3x3 (9 pikseli) z szumem.
-        Używane wyłącznie jako 'camera_matrix' w JSON (zgodność z frontendem UE5);
-        sieć decyzyjna korzysta z prawdziwego obrazu (get_camera_image_from_ue5).
-        """
-        if terrain_type == 0:   # Piasek (Sand)
+        if terrain_type == 0:
             base = [220, 220, 220, 210, 210, 210, 220, 220, 220]
-        elif terrain_type == 1: # Skała (Rock)
+        elif terrain_type == 1:
             base = [80, 180, 80, 180, 80, 180, 80, 180, 80]
-        else:                   # Krater (Crater)
+        else:
             base = [50, 50, 50, 50, 10, 50, 50, 50, 50]
 
         noisy_pixels = []
@@ -379,15 +417,7 @@ class Agent:
 
         return noisy_pixels
 
-    # =====================================================================
-    # AKTYWNY POBÓR OBRAZU KAMERY Z PLIKÓW UE5 DLA SIECI CNN
-    # =====================================================================
     def get_camera_image_from_ue5(self, env: Environment) -> torch.Tensor:
-        """
-        Pobiera losowy rzeczywisty zrzut ekranu z folderu ue5_photos, symulując
-        widok z kamery w czasie rzeczywistym na podstawie pozycji łazika.
-        Zwraca tensor [1, 3, 32, 32] gotowy dla sieci CNN.
-        """
         category = "sand"
         obj = next((o for o in env.objects if o.x == self.x and o.y == self.y and o.is_active), None)
 
@@ -425,25 +455,14 @@ class Agent:
             print(f"[OSTRZEZENIE] Blad wczytywania kamery w locie: {e}")
             return fallback
 
-    # =====================================================================
-    # DECYZJA SIECI NEURONOWEJ (MULTIMODAL CNN + MLP)
-    # =====================================================================
     def decide_next_macro_action(self, env: Environment, trained_nn, scaler, reverse_mapping: dict) -> str:
-        """
-        Podejmuje decyzję makro (GO_TO_CHARGE / CONTINUE_MINING) wielowejściową
-        siecią CNN + MLP: obraz z kamery UE5 + 7 cech telemetrycznych.
-        Cechy są znormalizowane tak, by były niezależne od ulepszeń sklepowych
-        (bateria jako % pojemności, plecak jako stopień zapełnienia 0..1).
-        """
-        # 1. Wizualny kadr z kamery UE5 (wejście CNN)
         img_tensor = self.get_camera_image_from_ue5(env)
 
-        # 2. Wektor 7 cech telemetrycznych (wejście MLP)
         battery_pct = (self.battery / self.max_battery * 100.0) if self.max_battery > 0 else 0.0
-        # Zapełnienie = bardziej wypełniony z dwóch wymiarów (waga / objętość)
         w_fill = (self.current_weight() / self.capacity) if self.capacity > 0 else 1.0
         v_fill = (self.current_volume() / self.volume_capacity) if self.volume_capacity > 0 else 1.0
         fill_ratio = max(w_fill, v_fill)
+        
         raw_features = np.array([[
             battery_pct,
             env.time_of_day,
@@ -454,12 +473,10 @@ class Agent:
             fill_ratio
         ]])
 
-        # 3. Skalowanie cech fizycznych i konwersja na tensory
         scaled_features = scaler.transform(raw_features)
         tab_tensor = torch.tensor(scaled_features, dtype=torch.float32)
 
         with torch.no_grad():
-            # Przepływ w przód przez sieć wielowejściową CNN + MLP
             outputs = trained_nn(img_tensor, tab_tensor)
             probabilities = torch.nn.functional.softmax(outputs, dim=1).numpy()[0]
             self.nn_confidence["CHARGE"] = float(probabilities[0] * 100)
@@ -480,16 +497,13 @@ class Agent:
             self.status = "DEAD"
 
     def to_dict(self, env=None) -> Dict[str, Any]:
-        # Wartości domyślne (np. na wypadek braku przekazania środowiska)
-        pixels = [220, 220, 220, 210, 210, 210, 220, 220, 220] # Domyślny piasek
+        pixels = [220, 220, 220, 210, 210, 210, 220, 220, 220]
         feed_type = "SAND"
 
         if env is not None:
-            # Odczytujemy typ podłoża pod łazikiem i generujemy piksele z szumem
             terrain = env.get_terrain_type(self.x, self.y)
             pixels = self.terrain_to_pixels(terrain)
 
-            # Sprawdzamy czy na polu stoi aktywny obiekt
             obj = next((o for o in env.objects if o.x == self.x and o.y == self.y and o.is_active), None)
             if obj is not None:
                 if obj.type == "ChargingStation":
@@ -510,7 +524,6 @@ class Agent:
                 else:
                     feed_type = "CRATER"
 
-        # Pobieranie aktualnych procentów pewności sieci
         nn_conf = getattr(self, "nn_confidence", {"MINING": 0.0, "CHARGE": 0.0})
         mining_p = nn_conf.get("MINING", 0.0)
         charge_p = nn_conf.get("CHARGE", 0.0)
@@ -530,8 +543,8 @@ class Agent:
             "money": round(self.money, 2),
             "upgrade_levels": self.upgrade_levels,
             "nn_thought": nn_thought_str,
-            "camera_matrix": pixels,             # Podgląd 3x3 do JSON (wsteczna zgodność z UE5)
-            "camera_feed_type": feed_type,       # Typ widoku (np. BASE, ROCK) do JSON / UE5
+            "camera_matrix": pixels,
+            "camera_feed_type": feed_type,
             "status": self.status,
             "current_plan": self.current_plan
         }

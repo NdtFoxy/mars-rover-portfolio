@@ -50,7 +50,7 @@ class Mineral(GameObject):
 class ChargingStation(GameObject):
     def __init__(self, x: int, y: int):
         super().__init__("ChargingStation", x, y)
-        self.energy_pool: float = 200.0
+        self.energy_pool: float = 500.0
 
     def to_dict(self) -> Dict[str, Any]:
         data = super().to_dict()
