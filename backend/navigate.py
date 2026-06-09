@@ -61,7 +61,7 @@ class TaskSpec:
 
 @dataclass
 class NavigatorSettings:
-    model_name: str = "cnn_mlp_v1"
+    model_name: str = "auto"   # mozg dobierany wg zadania (drzewo / CNN), nie na sztywno
     endpoint: str = "http://127.0.0.1:8000"
     max_steps: int = 25
     dry_run: bool = True

@@ -47,10 +47,14 @@ def active_decision_models():
     return None, None, None
 
 
-if mission.get_active_task().get("selected_task") == "project-6-neural-networks":
+_active = mission.get_active_task()
+_proj = _active.get("project_number")
+_title = _active.get("task_title", "?")
+if _active.get("selected_task") == "project-6-neural-networks":
+    print(f"[SYSTEM] Aktywne zadanie: {_proj} ({_title}) -> mozg: siec CNN+MLP")
     ensure_cnn_loaded()
 else:
-    print("[SYSTEM] Zadanie != 6 -> łazik używa drzewa decyzyjnego / Задание != 6 -> ровер używa дерева решений.")
+    print(f"[SYSTEM] Aktywne zadanie: {_proj} ({_title}) -> mozg: drzewo decyzyjne (CNN tylko w zad. 6)")
 
 # =====================================================================
 # GLOBALNE OBIEKTY
