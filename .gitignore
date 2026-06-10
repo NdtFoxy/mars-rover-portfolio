@@ -47,3 +47,11 @@ yarn-error.log*
 backend/rover_training_data.csv
 backend/nn_model_report.txt
 backend/decision_tree.png
+
+# --- Unreal Engine 5 (Visual Studio / build dirs) ---
+.vs/
+**/.vs/
+**/Binaries/
+**/DerivedDataCache/
+**/Intermediate/
+**/Saved/
