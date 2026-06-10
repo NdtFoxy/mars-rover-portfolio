@@ -43,3 +43,11 @@ yarn-error.log*
 # Local mission selection (written by navigate.py)
 backend/mission_config.json
 mission_config.json
+
+
+.vs/
+**/.vs/
+**/Binaries/
+**/DerivedDataCache/
+**/Intermediate/
+**/Saved/
